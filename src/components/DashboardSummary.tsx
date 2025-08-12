@@ -13,31 +13,116 @@ import {
   Calendar,
   AlertCircle 
 } from 'lucide-react';
+import type { Role } from '@/lib/types';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DashboardSummaryProps {
   guildId: string;
+  currentRole?: Role;
+  entreprise?: string;
 }
 
-export function DashboardSummary({ guildId }: DashboardSummaryProps) {
-  const [summary, setSummary] = useState<IDashboardSummary | null>(null);
-  const [employeeCount, setEmployeeCount] = useState<number | null>(null);
+export function DashboardSummary({ guildId, currentRole, entreprise }: DashboardSummaryProps) {
+  const [items, setItems] = useState<Array<{
+    entreprise: string;
+    name?: string;
+    ca_brut: number;
+    depenses: number;
+    benefice: number;
+    taux_imposition: number;
+    montant_impots: number;
+    employee_count?: number;
+  }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(false);
-    setSummary(null);
-    setError(null);
-  }, [guildId]);
+    let alive = true;
+    async function load() {
+      if (!guildId) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        // 1) Entreprises disponibles
+        const { data: ents, error: eEnt } = await supabase
+          .from('enterprises')
+          .select('key,name')
+          .eq('guild_id', guildId)
+          .order('name', { ascending: true });
+        if (eEnt) throw eEnt;
+        const list = (ents || []).map((e:any)=> ({ id: e.key as string, name: e.name as string }));
+
+        const role = (currentRole || 'employe').toLowerCase();
+        const isStaffOrDot = role.includes('staff') || role.includes('dot');
+        const targets = isStaffOrDot ? list.map(e=>e.id) : (entreprise ? [entreprise] : list[0] ? [list[0].id] : []);
+
+        const results: any[] = [];
+        for (const entKey of targets) {
+          // Dernier rapport
+          let rq = supabase
+            .from('dotation_reports')
+            .select('id, employees_count, totals, solde_actuel, created_at')
+            .eq('guild_id', guildId)
+            .eq('entreprise_key', entKey)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          const { data: rRows, error: rErr } = await rq;
+          if (rErr) throw rErr;
+          const report = rRows && rRows[0];
+
+          let caBrut = 0, depenses = 0;
+          if (report) {
+            const { data: rows, error: rowsErr } = await supabase
+              .from('dotation_rows')
+              .select('ca_total, facture')
+              .eq('report_id', report.id);
+            if (rowsErr) throw rowsErr;
+            for (const r of rows || []) {
+              caBrut += Number(r.ca_total || 0);
+              depenses += Number(r.facture || 0);
+            }
+          }
+
+          const benefice = Math.max(0, caBrut - depenses);
+          let tauxImposition = 0;
+          const { data: brackets } = await supabase
+            .from('tax_brackets')
+            .select('min,max,taux')
+            .eq('guild_id', guildId)
+            .eq('entreprise_key', entKey)
+            .order('min', { ascending: true });
+          if (brackets && brackets.length) {
+            const b = brackets.find(b => Number(b.min) <= benefice && (b.max === null || Number(b.max) >= benefice)) || brackets[brackets.length - 1];
+            tauxImposition = Number(b?.taux || 0);
+          }
+          const montantImpots = Math.round(benefice * (tauxImposition / 100));
+
+          results.push({
+            entreprise: entKey,
+            name: list.find(e=>e.id===entKey)?.name || entKey,
+            ca_brut: caBrut,
+            depenses,
+            benefice,
+            taux_imposition: tauxImposition,
+            montant_impots: montantImpots,
+            employee_count: report?.employees_count || 0,
+          });
+        }
+        if (!alive) return;
+        setItems(results);
+      } catch (e) {
+        if (alive) setError(handleApiError(e));
+      } finally {
+        if (alive) setIsLoading(false);
+      }
+    }
+    load();
+    return () => { alive = false; };
+  }, [guildId, currentRole, entreprise]);
 
   const currentWeek = getISOWeek();
-  const finalEmployeeCount = summary?.employee_count ?? employeeCount ?? 0;
 
-  if (isLoading) {
-    // plus de chargement de mock
-    return null;
-  }
-
+  if (isLoading) return null;
   if (error) {
     return (
       <div className="space-y-6">
@@ -60,10 +145,6 @@ export function DashboardSummary({ guildId }: DashboardSummaryProps) {
     );
   }
 
-  if (!summary) {
-    return null;
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -74,105 +155,48 @@ export function DashboardSummary({ guildId }: DashboardSummaryProps) {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* CA Brut */}
+      {items.length === 0 ? (
         <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              CA Brut
-            </CardTitle>
-            <TrendingUp className="w-4 h-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">
-              {formatCurrencyDollar(summary.ca_brut)}
-            </div>
+          <CardContent className="p-6">
+            <p className="text-sm text-muted-foreground">Aucune entreprise disponible.</p>
           </CardContent>
         </Card>
-
-        {/* Dépenses */}
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Dépenses
-            </CardTitle>
-            <TrendingDown className="w-4 h-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {formatCurrencyDollar(summary.depenses || 0)}
-            </div>
-            {summary.depenses_deductibles && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Déductibles: {formatCurrencyDollar(summary.depenses_deductibles)}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Bénéfice */}
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Bénéfice
-            </CardTitle>
-            <DollarSign className="w-4 h-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">
-              {formatCurrencyDollar(summary.benefice)}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Taux d'imposition */}
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Taux d'imposition
-            </CardTitle>
-            <Receipt className="w-4 h-4 text-warning" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">
-              {formatPercentage(summary.taux_imposition)}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Montant impôts */}
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Montant Impôts
-            </CardTitle>
-            <Receipt className="w-4 h-4 text-warning" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">
-              {formatCurrencyDollar(summary.montant_impots)}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Nombre d'employés */}
-        <Card className="stat-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Employés
-            </CardTitle>
-            <Users className="w-4 h-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">
-              {finalEmployeeCount}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {finalEmployeeCount === summary.employee_count ? 'Direct' : 'Calculé'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {items.map((it) => (
+            <Card key={it.entreprise} className="stat-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span>{it.name}</span>
+                  <Badge variant="secondary">{it.entreprise}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">CA Brut</span>
+                  <span className="font-semibold text-success">{formatCurrencyDollar(it.ca_brut)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Dépenses</span>
+                  <span className="font-semibold text-destructive">-{formatCurrencyDollar(it.depenses)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Bénéfice</span>
+                  <span className="font-semibold text-primary">{formatCurrencyDollar(it.benefice)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Taux d'imposition</span>
+                  <span className="font-semibold text-warning">{formatPercentage(it.taux_imposition)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Montant Impôts</span>
+                  <span className="font-semibold text-warning">{formatCurrencyDollar(it.montant_impots)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

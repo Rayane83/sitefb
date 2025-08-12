@@ -69,7 +69,7 @@ useEffect(() => {
           .eq('guild_id', guildId)
           .order('created_at', { ascending: false })
           .limit(1);
-        if (entreprise) rq = rq.eq('entreprise_key', entreprise);
+        if (entKey) rq = rq.eq('entreprise_key', entKey);
         const { data: reportRows, error: rErr } = await rq;
         if (rErr) throw rErr;
         const report = reportRows && reportRows[0];
@@ -92,12 +92,12 @@ useEffect(() => {
         // 3) Barème d'impôt (taux) basé sur bénéfice
         const benefice = Math.max(0, caBrut - depenses);
         let tauxImposition = 0;
-        if (entreprise) {
+        if (entKey) {
           const { data: brackets } = await supabase
             .from('tax_brackets')
             .select('min,max,taux')
             .eq('guild_id', guildId)
-            .eq('entreprise_key', entreprise)
+            .eq('entreprise_key', entKey)
             .order('min', { ascending: true });
           if (brackets && brackets.length) {
             const b = brackets.find(b => Number(b.min) <= benefice && (b.max === null || Number(b.max) >= benefice)) || brackets[brackets.length - 1];
@@ -110,12 +110,12 @@ useEffect(() => {
         // 4) Impôt richesse basé sur le solde actuel et la table wealth_brackets
         let impotRichesse = 0;
         let solde = Number(report?.solde_actuel || 0);
-        if (entreprise) {
+        if (entKey) {
           const { data: wealth } = await supabase
             .from('wealth_brackets')
             .select('min,max,taux')
             .eq('guild_id', guildId)
-            .eq('entreprise_key', entreprise)
+            .eq('entreprise_key', entKey)
             .order('min', { ascending: true });
           if (wealth && wealth.length && solde > 0) {
             const w = wealth.find(w => Number(w.min) <= solde && (w.max === null || Number(w.max) >= solde)) || wealth[wealth.length - 1];
@@ -147,7 +147,7 @@ useEffect(() => {
     }
     load();
     return () => { alive = false; };
-  }, [guildId, entreprise]);
+  }, [guildId, entKey]);
 
   const impotCards = useMemo(() => [
     { title: 'CA Brut', value: state.caBrut, icon: TrendingUp, color: 'text-success', bgColor: 'bg-success/10' },
@@ -214,6 +214,43 @@ useEffect(() => {
           <span>Synthèse Fiscale</span>
         </Badge>
       </div>
+
+      {(currentRole === 'staff' || currentRole === 'dot') && (
+        <Card className="stat-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Entreprise</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="space-y-2">
+                <Label>Choisir l'entreprise</Label>
+                <Select value={entKey} onValueChange={setEntKey}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {entreprisesList.map((e)=> (
+                      <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {entKey && (
+                <div className="space-y-2">
+                  <Label>Entreprise sélectionnée</Label>
+                  <Badge variant="secondary">{entKey}</Badge>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(!currentRole || (currentRole !== 'staff' && currentRole !== 'dot')) && entKey && (
+        <div className="flex items-center justify-end">
+          <Badge variant="outline">{entKey}</Badge>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {impotCards.map((card, index) => {
@@ -309,12 +346,6 @@ useEffect(() => {
               </div>
             </div>
 
-            <div className="pt-4 border-t">
-              <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                <Receipt className="w-4 h-4" />
-                <span>Données réelles — basées sur dotation_reports et dotation_rows</span>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>

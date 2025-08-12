@@ -377,7 +377,7 @@ const Index = () => {
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-6">
-              <DashboardSummary guildId={selectedGuildId} />
+              <DashboardSummary guildId={selectedGuildId} currentRole={currentRole} entreprise={entreprise} />
             </TabsContent>
 
             <TabsContent value="dotation" className="space-y-6">

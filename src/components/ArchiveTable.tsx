@@ -49,6 +49,12 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [form, setForm] = useState<{ date: string; montant: number; description: string }>({ date: '', montant: 0, description: '' });
 
+  // Template d'export (Staff uniquement)
+  const [templateHeaders, setTemplateHeaders] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`archives:templateHeaders:${guildId}`) || '[]'); } catch { return []; }
+  });
+  const templateInputId = `template-upload-${guildId}`;
+
 
   useEffect(() => {
     let alive = true;
@@ -118,32 +124,50 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     debouncedSetSearch(value);
   };
 
-  // Export Excel
-  const exportToExcel = () => {
-    try {
-      const data = filteredRows.map((row) => {
+// Export Excel
+const exportToExcel = () => {
+  try {
+    const headersForData = headers;
+    const data = filteredRows.map((row) => {
+      // Si un template est présent, suivre l'ordre et les intitulés du template
+      if (isStaffRole && templateHeaders.length) {
         const obj: Record<string, any> = {};
-        headers.forEach((h) => {
-          const label = formatHeaderName(h);
-          let v = (row as any)[h];
-          if (v && typeof v === 'object') v = JSON.stringify(v);
-          obj[label] = v;
-        });
+        for (const th of templateHeaders) {
+          const keyLower = th.toLowerCase();
+          // heuristiques simples de mapping
+          if (keyLower.includes('date')) obj[th] = row.date || row.created_at || '';
+          else if (keyLower.includes('montant')) obj[th] = row.montant ?? '';
+          else if (keyLower.includes('entreprise')) obj[th] = row.entreprise_key || entreprise || '';
+          else if (keyLower.includes('type')) obj[th] = row.type || '';
+          else if (keyLower.includes('statut')) obj[th] = row.statut || '';
+          else if (keyLower === 'id') obj[th] = row.id || '';
+          else obj[th] = '';
+        }
         return obj;
+      }
+      // Sinon, export dynamique avec entêtes formatés
+      const obj: Record<string, any> = {};
+      headersForData.forEach((h) => {
+        const label = formatHeaderName(h);
+        let v = (row as any)[h];
+        if (v && typeof v === 'object') v = JSON.stringify(v);
+        obj[label] = v;
       });
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Archives');
-      const date = new Date();
-      const stamp = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-      const name = `archives_${entreprise || 'toutes'}_${guildId || 'guild'}_${stamp}.xlsx`;
-      XLSX.writeFile(wb, name);
-      toast({ title: 'Export Excel', description: 'Le fichier a été généré.' });
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Erreur export', description: 'Impossible de générer le fichier.', variant: 'destructive' as any });
-    }
-  };
+      return obj;
+    });
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Archives');
+    const date = new Date();
+    const stamp = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    const name = `archives_${entreprise || 'toutes'}_${guildId || 'guild'}_${stamp}.xlsx`;
+    XLSX.writeFile(wb, name);
+    toast({ title: 'Export Excel', description: templateHeaders.length ? 'Export avec template.' : 'Export généré.' });
+  } catch (e) {
+    console.error(e);
+    toast({ title: 'Erreur export', description: "Impossible de générer le fichier.", variant: 'destructive' as any });
+  }
+};
   // Permissions
   const canEdit = (row: any) => {
     const statut = String(row?.statut || '').toLowerCase();
@@ -193,13 +217,35 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     toast({ title: 'Statut mis à jour', description: 'La fiche a été refusée.' });
   };
 
-  const handleDelete = (row: any) => {
-    if (!canDelete(row)) return;
-    if (window.confirm('Supprimer cette fiche ?')) {
-      setRows(prev => prev.filter(r => r.id !== row.id));
-      toast({ title: 'Supprimé', description: 'La fiche a été supprimée.' });
-    }
-  };
+const handleDelete = (row: any) => {
+  if (!canDelete(row)) return;
+  if (window.confirm('Supprimer cette fiche ?')) {
+    setRows(prev => prev.filter(r => r.id !== row.id));
+    toast({ title: 'Supprimé', description: 'La fiche a été supprimée.' });
+  }
+};
+
+// Import d'un template Excel (Staff)
+const onTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[];
+    const hdrs: string[] = (rows?.[0] || []).map((x: any) => String(x));
+    if (hdrs.length === 0) throw new Error('Aucune colonne détectée');
+    setTemplateHeaders(hdrs);
+    localStorage.setItem(`archives:templateHeaders:${guildId}`, JSON.stringify(hdrs));
+    toast({ title: 'Template importé', description: `${hdrs.length} colonnes détectées.` });
+  } catch (err) {
+    console.error(err);
+    toast({ title: 'Import impossible', description: 'Vérifiez le fichier .xlsx', variant: 'destructive' as any });
+  } finally {
+    e.currentTarget.value = '';
+  }
+};
 
   if (isLoading) {
     return (
@@ -245,16 +291,27 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Archives</h2>
-        <div className="flex items-center space-x-2">
-          {entreprise && <Badge variant="outline">{entreprise}</Badge>}
-          <Badge variant="secondary" className="flex items-center space-x-1">
-            <FileText className="w-3 h-3" />
-            <span>Total: {filteredRows.length}</span>
-          </Badge>
-          <Button variant="outline" size="sm" onClick={exportToExcel} aria-label="Exporter Excel">
-            <FileSpreadsheet className="w-4 h-4 mr-2" /> Exporter
-          </Button>
-        </div>
+      <div className="flex items-center space-x-2">
+        {entreprise && <Badge variant="outline">{entreprise}</Badge>}
+        <Badge variant="secondary" className="flex items-center space-x-1">
+          <FileText className="w-3 h-3" />
+          <span>Total: {filteredRows.length}</span>
+        </Badge>
+        {isStaffRole && (
+          <>
+            <input id={templateInputId} type="file" accept=".xlsx,.xls" className="hidden" onChange={onTemplateUpload} />
+            <Button variant="outline" size="sm" onClick={() => document.getElementById(templateInputId)?.click()} aria-label="Importer un template">
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> Importer Template
+            </Button>
+            {templateHeaders.length > 0 && (
+              <Badge variant="outline" className="text-xs">Template: {templateHeaders.length} colonnes</Badge>
+            )}
+          </>
+        )}
+        <Button variant="outline" size="sm" onClick={exportToExcel} aria-label="Exporter Excel">
+          <FileSpreadsheet className="w-4 h-4 mr-2" /> Exporter
+        </Button>
+      </div>
       </div>
 
       {/* Recherche */}

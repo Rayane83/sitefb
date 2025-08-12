@@ -295,29 +295,79 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     }
   };
   
-  const saveAll = async () => {
-    if (!guildId || !selectedEntreprise) return;
-    setLoading(true);
-    try {
-      await Promise.all([
-        apiPost<Bracket[]>("/api_proxy/config/tax-brackets", taxBrackets, {
-          guildId,
-          role: currentRole,
-          headers: { "Content-Type": "application/json" },
-        }),
-        apiPost<Wealth[]>("/api_proxy/config/wealth", wealth, {
-          guildId,
-          role: currentRole,
-          headers: { "Content-Type": "application/json" },
-        }),
-      ]);
-      toast({ title: "Configurations enregistrées", description: "Barèmes et richesse sauvegardés." });
-    } catch (e) {
-      toast({ title: "Erreur de sauvegarde", description: handleApiError(e), variant: "destructive" });
-    } finally {
-      setLoading(false);
+const saveAll = async () => {
+  if (!guildId || !selectedEntreprise) return;
+  setLoading(true);
+  try {
+    // Charger existants
+    const { data: existingTB } = await supabase
+      .from('tax_brackets')
+      .select('id')
+      .eq('guild_id', guildId)
+      .eq('entreprise_key', selectedEntreprise)
+      .order('min', { ascending: true });
+    const { data: existingW } = await supabase
+      .from('wealth_brackets')
+      .select('id')
+      .eq('guild_id', guildId)
+      .eq('entreprise_key', selectedEntreprise)
+      .order('min', { ascending: true });
+
+    // Upsert par index (UPDATE si existe, sinon INSERT)
+    const updates: Promise<any>[] = [];
+    const lenTB = Math.max(taxBrackets.length, existingTB?.length || 0);
+    for (let i = 0; i < lenTB; i++) {
+      const row = taxBrackets[i];
+      const ex = existingTB?.[i];
+      if (row && ex) {
+        updates.push(
+          supabase.from('tax_brackets').update({
+            min: row.min, max: row.max, taux: row.taux,
+            sal_min_emp: row.sal_min_emp, sal_max_emp: row.sal_max_emp,
+            sal_min_pat: row.sal_min_pat, sal_max_pat: row.sal_max_pat,
+            pr_min_emp: row.pr_min_emp, pr_max_emp: row.pr_max_emp,
+            pr_min_pat: row.pr_min_pat, pr_max_pat: row.pr_max_pat,
+          }).eq('id', ex.id)
+        );
+      } else if (row && !ex) {
+        updates.push(
+          supabase.from('tax_brackets').insert({
+            guild_id: guildId,
+            entreprise_key: selectedEntreprise,
+            min: row.min, max: row.max, taux: row.taux,
+            sal_min_emp: row.sal_min_emp, sal_max_emp: row.sal_max_emp,
+            sal_min_pat: row.sal_min_pat, sal_max_pat: row.sal_max_pat,
+            pr_min_emp: row.pr_min_emp, pr_max_emp: row.pr_max_emp,
+            pr_min_pat: row.pr_min_pat, pr_max_pat: row.pr_max_pat,
+          })
+        );
+      }
     }
-  };
+
+    const lenW = Math.max(wealth.length, existingW?.length || 0);
+    for (let i = 0; i < lenW; i++) {
+      const row = wealth[i];
+      const ex = existingW?.[i];
+      if (row && ex) {
+        updates.push(
+          supabase.from('wealth_brackets').update({ min: row.min, max: row.max, taux: row.taux }).eq('id', ex.id)
+        );
+      } else if (row && !ex) {
+        updates.push(
+          supabase.from('wealth_brackets').insert({ guild_id: guildId, entreprise_key: selectedEntreprise, min: row.min, max: row.max, taux: row.taux })
+        );
+      }
+    }
+
+    await Promise.all(updates);
+
+    toast({ title: 'Configurations enregistrées', description: 'Barèmes et richesse sauvegardés.' });
+  } catch (e) {
+    toast({ title: 'Erreur de sauvegarde', description: handleApiError(e), variant: 'destructive' });
+  } finally {
+    setLoading(false);
+  }
+};
 
 
   return (

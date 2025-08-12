@@ -221,9 +221,15 @@ const Index = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Building2 className="w-8 h-8 text-primary" />
-                <h1 className="text-2xl font-bold">Portail Entreprise</h1>
+              <div className="flex items-center space-x-3">
+                <img
+                  src="/lovable-uploads/edb98f3b-c1fa-4ca1-8a20-dd0be59b3591.png"
+                  alt="Logo Flashback Fa - Portail Entreprise"
+                  className="h-8 w-8 rounded-sm"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <h1 className="text-2xl font-bold">Portail Entreprise Flashback Fa</h1>
               </div>
               
             </div>

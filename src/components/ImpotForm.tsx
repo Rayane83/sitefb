@@ -28,6 +28,7 @@ export function ImpotForm({ guildId, entreprise, currentRole }: ImpotFormProps) 
     montantImpots: 0,
     beneficeApresImpot: 0,
     totalPrimes: 0,
+    totalSalaires: 0,
     beneficeApresPrimes: 0,
     impotRichesse: 0,
     soldeBancaireApresSalaire: 0,
@@ -75,17 +76,18 @@ useEffect(() => {
         const report = reportRows && reportRows[0];
 
         // 2) Lignes du rapport pour agréger les montants
-        let caBrut = 0, depenses = 0, primes = 0;
+        let caBrut = 0, depenses = 0, primes = 0, salaires = 0;
         if (report) {
           const { data: rows, error: rowsErr } = await supabase
             .from('dotation_rows')
-            .select('ca_total, facture, prime')
+            .select('ca_total, facture, prime, salaire')
             .eq('report_id', report.id);
           if (rowsErr) throw rowsErr;
           for (const r of rows || []) {
             caBrut += Number(r.ca_total || 0);
             depenses += Number(r.facture || 0);
             primes += Number(r.prime || 0);
+            salaires += Number((r as any).salaire || 0);
           }
         }
 
@@ -135,9 +137,10 @@ useEffect(() => {
           montantImpots,
           beneficeApresImpot,
           totalPrimes: primes,
+          totalSalaires: salaires,
           beneficeApresPrimes,
           impotRichesse,
-          soldeBancaireApresSalaire: solde,
+          soldeBancaireApresSalaire: Math.max(0, solde - salaires),
         });
       } catch (e: any) {
         if (alive) setError(e?.message || 'Erreur de chargement');
@@ -156,9 +159,10 @@ useEffect(() => {
     { title: "Montant d'Impôts", value: state.montantImpots, icon: Receipt, color: 'text-warning', bgColor: 'bg-warning/10', subtitle: `Taux: ${state.tauxImposition}%` },
     { title: "Bénéfice Après Impôt", value: state.beneficeApresImpot, icon: DollarSign, color: 'text-primary', bgColor: 'bg-primary/10' },
     { title: 'Total Primes', value: state.totalPrimes, icon: TrendingUp, color: 'text-warning', bgColor: 'bg-warning/10' },
+    { title: 'Total Salaires', value: state.totalSalaires, icon: TrendingDown, color: 'text-destructive', bgColor: 'bg-destructive/10' },
     { title: 'Bénéfice Après Primes', value: state.beneficeApresPrimes, icon: DollarSign, color: 'text-primary', bgColor: 'bg-primary/10' },
     { title: 'Impôt Richesse', value: state.impotRichesse, icon: Receipt, color: 'text-destructive', bgColor: 'bg-destructive/10' },
-    { title: 'Solde Bancaire Après Salaire', value: state.soldeBancaireApresSalaire, icon: DollarSign, color: 'text-success', bgColor: 'bg-success/10' },
+    { title: 'Solde Bancaire Après Salaires', value: state.soldeBancaireApresSalaire, icon: DollarSign, color: 'text-success', bgColor: 'bg-success/10' },
   ], [state]);
 
   if (isLoading) {
@@ -328,6 +332,10 @@ useEffect(() => {
                     <span className="text-muted-foreground">- Total primes :</span>
                     <span className="font-medium text-warning">-{formatCurrencyDollar(state.totalPrimes)}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">- Total salaires :</span>
+                    <span className="font-medium text-destructive">-{formatCurrencyDollar(state.totalSalaires)}</span>
+                  </div>
                   <hr className="border-border" />
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">= Bénéfice après primes :</span>
@@ -339,7 +347,7 @@ useEffect(() => {
                   </div>
                   <hr className="border-border" />
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Solde final :</span>
+                    <span className="text-muted-foreground">Solde après salaires :</span>
                     <span className="font-bold text-success text-base">{formatCurrencyDollar(state.soldeBancaireApresSalaire)}</span>
                   </div>
                 </div>

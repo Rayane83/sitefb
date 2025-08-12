@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 // Components
 import { LoginScreen } from '@/components/LoginScreen';
-import { GuildSwitcher } from '@/components/GuildSwitcher';
+
 import { RoleGate } from '@/components/RoleGate';
 import { DashboardSummary } from '@/components/DashboardSummary';
 import { DotationForm } from '@/components/DotationForm';
@@ -149,15 +149,12 @@ const Index = () => {
       const result = Array.from(ids).map((id) => ({ id, name: id, icon: '' })) as Guild[];
       setGuilds(result);
 
-      // Set default guild from URL params or first guild
-      const urlParams = new URLSearchParams(window.location.search);
-      const guildParam = urlParams.get('guild');
-      const initialGuild = guildParam && result.find((g) => g.id === guildParam)
-        ? guildParam
+      // Auto-select principal guild if configured, otherwise first available
+      const preferred = conf.principalGuildId && result.find(g => g.id === conf.principalGuildId)
+        ? conf.principalGuildId
         : result[0]?.id || '';
-      if (initialGuild) {
-        setSelectedGuildId(initialGuild);
-        updateURLGuild(initialGuild);
+      if (preferred) {
+        setSelectedGuildId(preferred);
       }
     } catch (e) {
       console.warn('loadGuilds error', e);
@@ -230,12 +227,6 @@ const Index = () => {
                 <h1 className="text-2xl font-bold">Portail Entreprise</h1>
               </div>
               
-              <GuildSwitcher 
-                guilds={guilds}
-                selectedGuildId={selectedGuildId}
-                onGuildChange={handleGuildChange}
-                isLoading={isLoadingRoles}
-              />
             </div>
 
             <div className="flex items-center space-x-4">

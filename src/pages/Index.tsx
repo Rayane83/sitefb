@@ -272,6 +272,14 @@ const Index = () => {
                     </Button>
                   </Link>
                 </RoleGate>
+
+                <RoleGate allow={canAccessCompanyConfig} currentRole={currentRole}>
+                  <Link to={`/patron-config?guild=${selectedGuildId}`} aria-label="Patron Config" title="Patron Config">
+                    <Button variant="outline" size="sm">
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                </RoleGate>
                 
                 <Button
                   variant="outline"

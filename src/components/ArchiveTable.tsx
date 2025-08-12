@@ -254,11 +254,16 @@ const exportToExcel = () => {
       toast({ title: 'Erreur', description: 'Mise à jour du statut impossible.', variant: 'destructive' });
     }
   };
-const handleDelete = (row: any) => {
+const handleDelete = async (row: any) => {
   if (!canDelete(row)) return;
-  if (window.confirm('Supprimer cette fiche ?')) {
-    setRows(prev => prev.filter(r => r.id !== row.id));
+  if (!window.confirm('Supprimer cette fiche ?')) return;
+  try {
+    const { error } = await supabase.from('archives').delete().eq('id', row.id);
+    if (error) throw error;
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
     toast({ title: 'Supprimé', description: 'La fiche a été supprimée.' });
+  } catch (e) {
+    toast({ title: 'Erreur', description: 'Suppression impossible.', variant: 'destructive' });
   }
 };
 

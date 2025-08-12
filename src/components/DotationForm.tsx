@@ -36,6 +36,8 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
 
   // Lecture seule pour Staff
   const isStaffReadOnly = (currentRole || '').toLowerCase().includes('staff');
+  const [reportId, setReportId] = useState<string | null>(null);
+  const [initialRowIds, setInitialRowIds] = useState<string[]>([]);
 
   // Tableaux simples: Dépense déductible et Tableau des retraits
   type SimpleEntry = { id: string; date: string; label: string; amount: number };
@@ -105,9 +107,13 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
               prime: Number(r.prime) || 0,
             }));
 
+            setReportId(rep.id);
+            setInitialRowIds(mappedRows.map((r)=> r.id));
             setDotationData({ rows: mappedRows, soldeActuel: Number(rep.solde_actuel) || 0 });
           } else {
             // Valeurs par défaut
+            setReportId(null);
+            setInitialRowIds([]);
             setDotationData({ rows: [], soldeActuel: 0 });
           }
         } catch (err) {
@@ -191,49 +197,151 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
       const totalExpenses = expenses.reduce((sum, r) => sum + r.amount, 0);
       const totalWithdrawals = withdrawals.reduce((sum, r) => sum + r.amount, 0);
 
-      // Créer le rapport + lignes dans Supabase
-      const { data: repIns, error: repErr } = await supabase
-        .from('dotation_reports')
-        .insert({
-          guild_id: guildId,
-          entreprise_key: entreprise,
-          solde_actuel: dotationData.soldeActuel,
-          totals: {
-            totalExpenses,
-            totalWithdrawals,
-            totalCA,
-            totalSalaires,
-            totalPrimes,
-          },
-          employees_count: dotationData.rows.length,
-        })
-        .select('id')
-        .single();
-      if (repErr) throw repErr;
+      const totalsPayload = {
+        totalExpenses,
+        totalWithdrawals,
+        totalCA,
+        totalSalaires,
+        totalPrimes,
+      };
 
-      const rowsPayload = dotationData.rows.map(r => ({
-        report_id: repIns!.id,
-        name: r.name,
-        run: r.run,
-        facture: r.facture,
-        vente: r.vente,
-        ca_total: r.ca_total,
-        salaire: r.salaire,
-        prime: r.prime,
-      }));
-      const { error: rowsErr } = await supabase.from('dotation_rows').insert(rowsPayload);
-      if (rowsErr) throw rowsErr;
+      if (reportId) {
+        // UPDATE existing report
+        const { data: repUpd, error: repUpdErr } = await supabase
+          .from('dotation_reports')
+          .update({
+            solde_actuel: dotationData.soldeActuel,
+            totals: totalsPayload,
+            employees_count: dotationData.rows.length,
+          })
+          .eq('id', reportId)
+          .select('id')
+          .maybeSingle();
+        if (repUpdErr) throw repUpdErr;
+        const rid = repUpd?.id || reportId;
 
+        const currentIds = dotationData.rows.map((r) => r.id);
+        const deletedIds = initialRowIds.filter((id) => !currentIds.includes(id));
+        if (deletedIds.length) {
+          const { error } = await supabase.from('dotation_rows').delete().in('id', deletedIds);
+          if (error) throw error;
+        }
+
+        // Update existing rows
+        for (const r of dotationData.rows) {
+          if (initialRowIds.includes(r.id)) {
+            const { error } = await supabase
+              .from('dotation_rows')
+              .update({
+                name: r.name,
+                run: r.run,
+                facture: r.facture,
+                vente: r.vente,
+                ca_total: r.ca_total,
+                salaire: r.salaire,
+                prime: r.prime,
+              })
+              .eq('id', r.id);
+            if (error) throw error;
+          }
+        }
+
+        // Insert new rows
+        const newRows = dotationData.rows.filter((r) => !initialRowIds.includes(r.id));
+        if (newRows.length) {
+          const inserts = newRows.map((r) => ({
+            report_id: rid,
+            name: r.name,
+            run: r.run,
+            facture: r.facture,
+            vente: r.vente,
+            ca_total: r.ca_total,
+            salaire: r.salaire,
+            prime: r.prime,
+          }));
+          const { error } = await supabase.from('dotation_rows').insert(inserts);
+          if (error) throw error;
+        }
+
+        // Refresh from DB to capture real IDs
+        const { data: fresh, error: freshErr } = await supabase
+          .from('dotation_rows')
+          .select('*')
+          .eq('report_id', rid);
+        if (freshErr) throw freshErr;
+        const mapped: DotationRow[] = (fresh || []).map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          run: Number(r.run) || 0,
+          facture: Number(r.facture) || 0,
+          vente: Number(r.vente) || 0,
+          ca_total: Number(r.ca_total) || 0,
+          salaire: Number(r.salaire) || 0,
+          prime: Number(r.prime) || 0,
+        }));
+        setDotationData({ rows: mapped, soldeActuel: dotationData.soldeActuel });
+        setInitialRowIds(mapped.map((r) => r.id));
+        setReportId(rid);
+      } else {
+        // CREATE new report + rows
+        const { data: repIns, error: repErr } = await supabase
+          .from('dotation_reports')
+          .insert({
+            guild_id: guildId,
+            entreprise_key: entreprise,
+            solde_actuel: dotationData.soldeActuel,
+            totals: totalsPayload,
+            employees_count: dotationData.rows.length,
+          })
+          .select('id')
+          .single();
+        if (repErr) throw repErr;
+
+        const rowsPayload = dotationData.rows.map((r) => ({
+          report_id: repIns!.id,
+          name: r.name,
+          run: r.run,
+          facture: r.facture,
+          vente: r.vente,
+          ca_total: r.ca_total,
+          salaire: r.salaire,
+          prime: r.prime,
+        }));
+        const { error: rowsErr } = await supabase
+          .from('dotation_rows')
+          .insert(rowsPayload);
+        if (rowsErr) throw rowsErr;
+
+        // Refresh
+        const { data: fresh, error: freshErr } = await supabase
+          .from('dotation_rows')
+          .select('*')
+          .eq('report_id', repIns!.id);
+        if (freshErr) throw freshErr;
+        const mapped: DotationRow[] = (fresh || []).map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          run: Number(r.run) || 0,
+          facture: Number(r.facture) || 0,
+          vente: Number(r.vente) || 0,
+          ca_total: Number(r.ca_total) || 0,
+          salaire: Number(r.salaire) || 0,
+          prime: Number(r.prime) || 0,
+        }));
+        setDotationData({ rows: mapped, soldeActuel: dotationData.soldeActuel });
+        setInitialRowIds(mapped.map((r) => r.id));
+        setReportId(repIns!.id);
+      }
 
       toast({
-        title: "Sauvegarde réussie",
-        description: "Les dotations ont été enregistrées avec succès",
+        title: 'Sauvegarde réussie',
+        description: 'Les dotations ont été enregistrées avec succès',
       });
     } catch (err) {
       toast({
-        title: "Erreur de sauvegarde",
+        title: 'Erreur de sauvegarde',
         description: handleApiError(err),
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsSaving(false);

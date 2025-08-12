@@ -13,6 +13,7 @@ import { DotationForm } from '@/components/DotationForm';
 import { ImpotForm } from '@/components/ImpotForm';
 import { BlanchimentToggle } from '@/components/BlanchimentToggle';
 import { ArchiveTable } from '@/components/ArchiveTable';
+import { DocsUpload } from '@/components/DocsUpload';
 import StaffConfig from '@/components/StaffConfig';
 // Utils
 import { 
@@ -24,7 +25,8 @@ import {
   canAccessDotation,
   canAccessImpot,
   canAccessBlanchiment,
-  canAccessStaffConfig
+  canAccessStaffConfig,
+  isDot,
 } from '@/lib/roles';
 import { canAccessCompanyConfig } from '@/lib/roles';
 import { Role, Guild, User } from '@/lib/types';
@@ -302,7 +304,7 @@ const Index = () => {
           </Card>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
               <RoleGate
                 allow={() => true}
                 currentRole={currentRole}
@@ -331,6 +333,16 @@ const Index = () => {
               >
                 <Receipt className="w-4 h-4 mr-2" />
                 Impôts
+              </RoleGate>
+              
+              <RoleGate
+                allow={isDot}
+                currentRole={currentRole}
+                asTabTrigger
+                value="docs"
+              >
+                <Receipt className="w-4 h-4 mr-2" />
+                Docs
               </RoleGate>
               
               <RoleGate
@@ -391,6 +403,12 @@ const Index = () => {
                   entreprise={entreprise}
                   currentRole={getRoleDisplayName(currentRole)}
                 />
+              </RoleGate>
+            </TabsContent>
+
+            <TabsContent value="docs" className="space-y-6">
+              <RoleGate allow={isDot} currentRole={currentRole}>
+                <DocsUpload guildId={selectedGuildId} entreprise={entreprise} role={currentRole} />
               </RoleGate>
             </TabsContent>
 

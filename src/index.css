@@ -228,4 +228,21 @@
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* Animated blue background (uses design tokens) */
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .bg-animated-blue {
+    background-image: linear-gradient(120deg,
+      hsl(var(--primary) / 0.25),
+      hsl(var(--primary) / 0.18),
+      hsl(var(--primary) / 0.25)
+    );
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease-in-out infinite;
+  }
 }

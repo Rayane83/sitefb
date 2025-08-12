@@ -148,9 +148,9 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
   const canEdit = (row: any) => {
     const statut = String(row?.statut || '').toLowerCase();
     const isRefused = statut.includes('refus');
-    return isStaffRole || isDotRole || ((isPatronRole || isCoPatronRole) && isRefused);
+    return isStaffRole || ((isPatronRole || isCoPatronRole) && isRefused);
   };
-  const canValidate = (_row: any) => isStaffRole || isDotRole;
+  const canValidate = (_row: any) => isStaffRole;
   const canDelete = (_row: any) => isStaffRole; // suppression réservée au Staff
 
   // Modal helpers

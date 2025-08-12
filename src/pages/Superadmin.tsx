@@ -34,6 +34,8 @@ const DEFAULTS: DiscordConfig = {
   },
 };
 
+const ROOT_SUPERADMIN_ID = '462716512252329996';
+
 export default function SuperadminPage() {
   const [cfg, setCfg] = useState<DiscordConfig>(DEFAULTS);
   const [saving, setSaving] = useState(false);
@@ -41,7 +43,24 @@ export default function SuperadminPage() {
   const location = useLocation();
   const { toast } = useToast();
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const canManageSuperadmins = currentUserId === ROOT_SUPERADMIN_ID;
+
   const guildParam = useMemo(() => new URLSearchParams(location.search).get("guild") || "", [location.search]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
+        const providerId = (user?.user_metadata as any)?.provider_id || (user?.user_metadata as any)?.sub;
+        setCurrentUserId(providerId ? String(providerId) : null);
+      } catch {
+        setCurrentUserId(null);
+      }
+    })();
+  }, []);
+
 
   useEffect(() => {
     document.title = "Superadmin Discord Config | Portail";
@@ -95,6 +114,10 @@ export default function SuperadminPage() {
   };
 
   const addSuperadmin = () => {
+    if (currentUserId !== ROOT_SUPERADMIN_ID) {
+      toast({ title: "Action interdite", description: "Seul l'utilisateur autorisé peut gérer les superadmins.", variant: "destructive" });
+      return;
+    }
     const id = prompt("ID utilisateur Discord du superadmin");
     if (!id) return;
     const current = cfg.superadmins?.userIds || [];
@@ -102,6 +125,10 @@ export default function SuperadminPage() {
   };
 
   const removeSuperadmin = (id: string) => {
+    if (currentUserId !== ROOT_SUPERADMIN_ID) {
+      toast({ title: "Action interdite", description: "Seul l'utilisateur autorisé peut gérer les superadmins.", variant: "destructive" });
+      return;
+    }
     const current = cfg.superadmins?.userIds || [];
     setCfg(prev => ({ ...prev, superadmins: { userIds: current.filter(x => x !== id) } }));
   };
@@ -141,27 +168,6 @@ export default function SuperadminPage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Application Discord</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-2">
-              <Label>Client ID</Label>
-              <Input value={cfg.clientId || ""} onChange={(e) => setCfg({ ...cfg, clientId: e.target.value })} placeholder="Client ID" />
-            </div>
-            <div className="grid gap-2">
-              <Label>Bot Token</Label>
-              <Input value={"••••••••••••••"} readOnly aria-readonly />
-              <p className="text-xs text-muted-foreground">Le Bot Token doit être configuré via Supabase Secrets, pas dans le frontend.</p>
-            </div>
-            <div className="grid gap-2">
-              <Label>Client Secret</Label>
-              <Input value={"••••••••••••••"} readOnly aria-readonly />
-              <p className="text-xs text-muted-foreground">Le Client Secret doit être configuré via Supabase Secrets.</p>
-            </div>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
@@ -251,11 +257,13 @@ export default function SuperadminPage() {
               {(cfg.superadmins?.userIds || []).map((id) => (
                 <div key={id} className="flex items-center gap-2">
                   <Badge variant="outline">{id}</Badge>
-                  <Button size="sm" variant="outline" onClick={() => removeSuperadmin(id)}>Retirer</Button>
+                  {canManageSuperadmins && (
+                    <Button size="sm" variant="outline" onClick={() => removeSuperadmin(id)}>Retirer</Button>
+                  )}
                 </div>
               ))}
             </div>
-            <Button variant="secondary" onClick={addSuperadmin}>Ajouter un superadmin</Button>
+            {canManageSuperadmins && <Button variant="secondary" onClick={addSuperadmin}>Ajouter un superadmin</Button>}
           </CardContent>
         </Card>
       </div>

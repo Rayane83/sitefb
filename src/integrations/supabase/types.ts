@@ -14,6 +14,156 @@ export type Database = {
   }
   public: {
     Tables: {
+      archives: {
+        Row: {
+          created_at: string
+          date: string | null
+          entreprise_key: string | null
+          guild_id: string
+          id: string
+          montant: number | null
+          payload: Json | null
+          statut: string | null
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string | null
+          entreprise_key?: string | null
+          guild_id: string
+          id?: string
+          montant?: number | null
+          payload?: Json | null
+          statut?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string | null
+          entreprise_key?: string | null
+          guild_id?: string
+          id?: string
+          montant?: number | null
+          payload?: Json | null
+          statut?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blanchiment_global: {
+        Row: {
+          created_at: string
+          guild_id: string
+          perc_entreprise: number | null
+          perc_groupe: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          guild_id: string
+          perc_entreprise?: number | null
+          perc_groupe?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          guild_id?: string
+          perc_entreprise?: number | null
+          perc_groupe?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blanchiment_rows: {
+        Row: {
+          created_at: string
+          date_recu: string | null
+          date_rendu: string | null
+          donneur_id: string | null
+          duree: number | null
+          employe: string | null
+          entreprise_key: string
+          groupe: string | null
+          guild_id: string
+          id: string
+          recep_id: string | null
+          somme: number | null
+          statut: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_recu?: string | null
+          date_rendu?: string | null
+          donneur_id?: string | null
+          duree?: number | null
+          employe?: string | null
+          entreprise_key: string
+          groupe?: string | null
+          guild_id: string
+          id?: string
+          recep_id?: string | null
+          somme?: number | null
+          statut?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_recu?: string | null
+          date_rendu?: string | null
+          donneur_id?: string | null
+          duree?: number | null
+          employe?: string | null
+          entreprise_key?: string
+          groupe?: string | null
+          guild_id?: string
+          id?: string
+          recep_id?: string | null
+          somme?: number | null
+          statut?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blanchiment_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          entreprise_key: string
+          guild_id: string
+          id: string
+          perc_entreprise: number | null
+          perc_groupe: number | null
+          updated_at: string
+          use_global: boolean
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          entreprise_key: string
+          guild_id: string
+          id?: string
+          perc_entreprise?: number | null
+          perc_groupe?: number | null
+          updated_at?: string
+          use_global?: boolean
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          entreprise_key?: string
+          guild_id?: string
+          id?: string
+          perc_entreprise?: number | null
+          perc_groupe?: number | null
+          updated_at?: string
+          use_global?: boolean
+        }
+        Relationships: []
+      }
       discord_config: {
         Row: {
           created_at: string
@@ -31,6 +181,209 @@ export type Database = {
           created_at?: string
           data?: Json
           id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dotation_reports: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employees_count: number | null
+          entreprise_key: string
+          guild_id: string
+          id: string
+          solde_actuel: number
+          totals: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employees_count?: number | null
+          entreprise_key: string
+          guild_id: string
+          id?: string
+          solde_actuel?: number
+          totals?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employees_count?: number | null
+          entreprise_key?: string
+          guild_id?: string
+          id?: string
+          solde_actuel?: number
+          totals?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dotation_rows: {
+        Row: {
+          ca_total: number
+          facture: number
+          id: string
+          name: string
+          prime: number
+          report_id: string
+          run: number
+          salaire: number
+          vente: number
+        }
+        Insert: {
+          ca_total?: number
+          facture?: number
+          id?: string
+          name: string
+          prime?: number
+          report_id: string
+          run?: number
+          salaire?: number
+          vente?: number
+        }
+        Update: {
+          ca_total?: number
+          facture?: number
+          id?: string
+          name?: string
+          prime?: number
+          report_id?: string
+          run?: number
+          salaire?: number
+          vente?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dotation_rows_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "dotation_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enterprises: {
+        Row: {
+          created_at: string
+          employee_role_id: string | null
+          guild_id: string
+          id: string
+          key: string
+          name: string
+          role_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_role_id?: string | null
+          guild_id: string
+          id?: string
+          key: string
+          name: string
+          role_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_role_id?: string | null
+          guild_id?: string
+          id?: string
+          key?: string
+          name?: string
+          role_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tax_brackets: {
+        Row: {
+          created_at: string
+          entreprise_key: string
+          guild_id: string
+          id: string
+          max: number | null
+          min: number
+          pr_max_emp: number | null
+          pr_max_pat: number | null
+          pr_min_emp: number | null
+          pr_min_pat: number | null
+          sal_max_emp: number | null
+          sal_max_pat: number | null
+          sal_min_emp: number | null
+          sal_min_pat: number | null
+          taux: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entreprise_key: string
+          guild_id: string
+          id?: string
+          max?: number | null
+          min: number
+          pr_max_emp?: number | null
+          pr_max_pat?: number | null
+          pr_min_emp?: number | null
+          pr_min_pat?: number | null
+          sal_max_emp?: number | null
+          sal_max_pat?: number | null
+          sal_min_emp?: number | null
+          sal_min_pat?: number | null
+          taux: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entreprise_key?: string
+          guild_id?: string
+          id?: string
+          max?: number | null
+          min?: number
+          pr_max_emp?: number | null
+          pr_max_pat?: number | null
+          pr_min_emp?: number | null
+          pr_min_pat?: number | null
+          sal_max_emp?: number | null
+          sal_max_pat?: number | null
+          sal_min_emp?: number | null
+          sal_min_pat?: number | null
+          taux?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wealth_brackets: {
+        Row: {
+          created_at: string
+          entreprise_key: string
+          guild_id: string
+          id: string
+          max: number | null
+          min: number
+          taux: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entreprise_key: string
+          guild_id: string
+          id?: string
+          max?: number | null
+          min: number
+          taux: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entreprise_key?: string
+          guild_id?: string
+          id?: string
+          max?: number | null
+          min?: number
+          taux?: number
           updated_at?: string
         }
         Relationships: []

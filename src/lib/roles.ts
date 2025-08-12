@@ -29,10 +29,11 @@ export async function getUserGuildRoles(guildId: string): Promise<string[]> {
 
 export function resolveRole(roles: string[]): Role {
   // Hiérarchie des rôles (du plus important au moins important)
-  if (roles.some(r => r.toLowerCase().includes('staff'))) return 'staff';
-  if (roles.some(r => r.toLowerCase().includes('patron') && !r.toLowerCase().includes('co'))) return 'patron';
-  if (roles.some(r => r.toLowerCase().includes('co-patron') || r.toLowerCase().includes('copatron'))) return 'co-patron';
-  if (roles.some(r => r.toLowerCase().includes('dot'))) return 'dot';
+  const has = (s: string) => (r: string) => r.toLowerCase().includes(s);
+  if (roles.some(has('staff'))) return 'staff';
+  if (roles.some(r => /co[-\s]?patron|copatron/i.test(r))) return 'co-patron';
+  if (roles.some(r => r.toLowerCase().includes('patron'))) return 'patron';
+  if (roles.some(has('dot'))) return 'dot';
   return 'employe';
 }
 
@@ -41,11 +42,11 @@ export function getEntrepriseFromRoles(roles: string[]): string {
   // Gère: "Employé Bennys", "Emp Bennys", "Patron Bennys", "Co-Patron Bennys", "DOT Bennys",
   //       "Bennys Patron", "Bennys - Patron", "Patron • Bennys", etc.
   const sep = "[\\s\\-\\|•:>]+"; // séparateurs courants
-  const leadRe = new RegExp(`^(?:employ[eé]|emp|patron|co-?patron|copatron|dot)${sep}(.+)$`, 'i');
-  const trailRe = new RegExp(`^(.+)${sep}(?:employ[eé]|emp|patron|co-?patron|copatron|dot)$`, 'i');
+  const leadRe = new RegExp(`^(?:employ[eé]|emp|patron|co[-\\s]?patron|copatron|dot)${sep}(.+)$`, 'i');
+  const trailRe = new RegExp(`^(.+)${sep}(?:employ[eé]|emp|patron|co[-\\s]?patron|copatron|dot)$`, 'i');
 
   const bannedTokens = [
-    'staff', 'patron', 'co-patron', 'copatron', 'employe', 'employé', 'emp', 'dot',
+    'staff', 'patron', 'co-patron', 'co patron', 'copatron', 'employe', 'employé', 'emp', 'dot',
     '@everyone', 'everyone', 'bot'
   ];
 

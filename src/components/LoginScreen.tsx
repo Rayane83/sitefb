@@ -11,67 +11,28 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-primary/5 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl mx-auto">
         {/* Hero Section */}
-        <div className="text-center mb-12 animate-fade-in">
-          <div className="mb-6">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-4">
-              <Shield className="w-10 h-10 text-primary" />
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Portail Entreprise Discord
+        <div className="text-center mb-10 animate-fade-in">
+          <img
+            src="/lovable-uploads/edb98f3b-c1fa-4ca1-8a20-dd0be59b3591.png"
+            alt="Logo Flashback Fa"
+            className="mx-auto h-16 w-16 rounded-md shadow"
+            loading="lazy"
+            decoding="async"
+          />
+          <h1 className="mt-6 text-4xl font-bold text-foreground">
+            Portail Entreprise Flashback Fa
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Gérez vos entreprises Discord multi-guildes en toute simplicité. 
-            Dotations, impôts, blanchiment et bien plus.
+          <p className="mt-3 text-lg text-muted-foreground max-w-xl mx-auto">
+            Connectez-vous avec Discord pour accéder à votre espace d’entreprise.
           </p>
         </div>
 
-        {/* Features Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12 animate-slide-up">
-          <Card className="stat-card">
-            <CardHeader className="text-center">
-              <TrendingUp className="w-8 h-8 text-primary mx-auto mb-2" />
-              <CardTitle className="text-lg">Dashboard</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="text-center">
-                Suivez vos KPI en temps réel : CA, bénéfices, impôts et employés
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="stat-card">
-            <CardHeader className="text-center">
-              <Users className="w-8 h-8 text-success mx-auto mb-2" />
-              <CardTitle className="text-lg">Dotations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="text-center">
-                Calculez automatiquement les salaires et primes via paliers configurés
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="stat-card">
-            <CardHeader className="text-center">
-              <Shield className="w-8 h-8 text-warning mx-auto mb-2" />
-              <CardTitle className="text-lg">Gestion Multi-Guilde</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="text-center">
-                Switching instantané entre vos différentes guildes et entreprises
-              </CardDescription>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Login Card */}
-        <Card className="max-w-md mx-auto stat-card animate-fade-in">
+        <Card className="max-w-md mx-auto stat-card backdrop-blur-sm bg-card/70">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Connexion</CardTitle>
-            <CardDescription>
-              Connectez-vous avec votre compte Discord pour accéder au portail
-            </CardDescription>
+            <CardDescription>Accédez à votre portail Flashback Fa</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button 

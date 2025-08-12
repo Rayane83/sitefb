@@ -63,43 +63,43 @@ const Index = () => {
 
   // Supabase auth session
   useEffect(() => {
-    let unsub: any;
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      const sess = data.session;
-      setIsLoggedIn(!!sess);
-      if (sess) {
-        const u = sess.user;
+    // Set up auth listener FIRST to catch the OAuth redirect event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsLoggedIn(!!session);
+      if (session) {
+        const u = session.user;
         setUser({
           id: u.id,
           name: (u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Utilisateur') as string,
           avatar: (u.user_metadata?.avatar_url || u.user_metadata?.avatar) as string | undefined,
           discriminator: ''
         } as any);
-        await loadGuilds();
+        // Defer any Supabase calls to avoid deadlocks in the callback
+        setTimeout(() => { loadGuilds(); }, 0);
+      } else {
+        setUser(null);
+        setGuilds([]);
+        setSelectedGuildId('');
       }
-      const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        setIsLoggedIn(!!session);
-        if (session) {
-          const u2 = session.user;
-          setUser({
-            id: u2.id,
-            name: (u2.user_metadata?.full_name || u2.user_metadata?.name || u2.email || 'Utilisateur') as string,
-            avatar: (u2.user_metadata?.avatar_url || u2.user_metadata?.avatar) as string | undefined,
-            discriminator: ''
-          } as any);
-          await loadGuilds();
-        } else {
-          setUser(null);
-          setGuilds([]);
-          setSelectedGuildId('');
-        }
-      });
-      unsub = sub?.subscription;
-    })();
-    return () => { try { unsub?.unsubscribe?.(); } catch {} };
-  }, []);
+    });
 
+    // THEN check for an existing session (including one just returned via URL hash)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+      if (session) {
+        const u = session.user;
+        setUser({
+          id: u.id,
+          name: (u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Utilisateur') as string,
+          avatar: (u.user_metadata?.avatar_url || u.user_metadata?.avatar) as string | undefined,
+          discriminator: ''
+        } as any);
+        setTimeout(() => { loadGuilds(); }, 0);
+      }
+    });
+
+    return () => { try { subscription.unsubscribe(); } catch {} };
+  }, []);
   // Active tab
   const [activeTab, setActiveTab] = useState('dashboard');
 

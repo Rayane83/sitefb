@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { formatCurrencyDollar } from '@/lib/fmt';
 import { Receipt, TrendingUp, TrendingDown, DollarSign, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Role } from '@/lib/types';
 
 interface ImpotFormProps {
   guildId: string;
   entreprise?: string;
+  currentRole?: Role;
 }
 
-export function ImpotForm({ guildId, entreprise }: ImpotFormProps) {
+export function ImpotForm({ guildId, entreprise, currentRole }: ImpotFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [entreprisesList, setEntreprisesList] = useState<{ id: string; name: string }[]>([]);
+  const [entKey, setEntKey] = useState<string>(entreprise || '');
 
   const [state, setState] = useState({
     caBrut: 0,
@@ -26,6 +32,28 @@ export function ImpotForm({ guildId, entreprise }: ImpotFormProps) {
     impotRichesse: 0,
     soldeBancaireApresSalaire: 0,
   });
+
+useEffect(() => {
+    let alive = true;
+    async function fetchEnterprises() {
+      if (!guildId) return;
+      try {
+        const { data, error } = await supabase
+          .from('enterprises')
+          .select('key,name')
+          .eq('guild_id', guildId)
+          .order('name', { ascending: true });
+        if (error) throw error;
+        const list = (data || []).map((e: any) => ({ id: e.key, name: e.name }));
+        if (!alive) return;
+        setEntreprisesList(list);
+        if (!entKey && (entreprise || list[0]?.id)) {
+          setEntKey(entreprise || list[0]?.id || '');
+        }
+      } catch { /* ignore */ }
+    }
+    fetchEnterprises();
+  }, [guildId]);
 
   useEffect(() => {
     let alive = true;

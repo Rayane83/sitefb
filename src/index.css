@@ -245,4 +245,31 @@
     background-size: 200% 200%;
     animation: gradient-shift 8s ease-in-out infinite;
   }
+
+  /* Subtle hero overlay inspired by enterprise sites */
+  .bg-hero-grid {
+    background-image:
+      radial-gradient(800px 300px at 10% -10%, hsl(var(--primary) / 0.15), transparent 60%),
+      radial-gradient(600px 250px at 90% 0%, hsl(var(--primary) / 0.12), transparent 60%),
+      repeating-linear-gradient(90deg, hsl(var(--primary) / 0.06) 0 1px, transparent 1px 40px),
+      repeating-linear-gradient(180deg, hsl(var(--primary) / 0.06) 0 1px, transparent 1px 40px);
+    background-blend-mode: screen, screen, normal, normal;
+  }
+
+  @keyframes float-up {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+    100% { transform: translateY(0); }
+  }
+
+  .glass-panel {
+    @apply bg-card/70 border border-border rounded-2xl shadow-lg backdrop-blur-md;
+  }
+
+  .text-gradient {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }

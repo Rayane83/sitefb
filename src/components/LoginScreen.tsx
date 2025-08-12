@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Shield, BadgeCheck, Clock } from "lucide-react";
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -12,7 +13,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [isHuman, setIsHuman] = useState(false);
 
   return (
-    <div className="min-h-screen bg-animated-blue flex items-center justify-center p-4">
+    <div className="min-h-screen bg-animated-blue bg-hero-grid flex items-center justify-center p-4">
       <div className="w-full max-w-4xl mx-auto">
         {/* Hero Section */}
         <div className="text-center mb-10 animate-fade-in">
@@ -23,16 +24,38 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             loading="lazy"
             decoding="async"
           />
-          <h1 className="mt-6 text-4xl font-bold text-foreground">
+          <h1 className="mt-6 text-4xl font-extrabold text-gradient">
             Portail Entreprise Flashback Fa
           </h1>
           <p className="mt-3 text-lg text-muted-foreground max-w-xl mx-auto">
             Connectez-vous avec Discord pour accéder à votre espace d’entreprise.
           </p>
+
+          {/* Benefits */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto mt-6">
+            <div className="stat-card py-3 animate-[float-up_6s_ease-in-out_infinite]">
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Shield className="w-4 h-4 text-primary" />
+                <span>Connexion OAuth sécurisée</span>
+              </div>
+            </div>
+            <div className="stat-card py-3 animate-[float-up_7s_ease-in-out_infinite]">
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <BadgeCheck className="w-4 h-4 text-primary" />
+                <span>Accès rôles & permissions</span>
+              </div>
+            </div>
+            <div className="stat-card py-3 animate-[float-up_8s_ease-in-out_infinite]">
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Clock className="w-4 h-4 text-primary" />
+                <span>Disponible 24/7</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Login Card */}
-        <Card className="max-w-md mx-auto stat-card backdrop-blur-sm bg-card/70">
+        <Card className="glass-panel max-w-md mx-auto">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Connexion</CardTitle>
             <CardDescription>Accédez à votre portail Flashback Fa</CardDescription>

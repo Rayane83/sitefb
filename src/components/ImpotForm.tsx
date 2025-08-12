@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "/src/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyDollar } from '@/lib/fmt';
 import { Receipt, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 

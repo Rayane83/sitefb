@@ -66,6 +66,16 @@ export const mockApi = {
     await new Promise((r) => setTimeout(r, 300));
     return { rows: [ { id: '1', name: 'Jean Dupont', run: 15000, facture: 8000, vente: 12000, ca_total: 35000, salaire: 3200, prime: 750 }, { id: '2', name: 'Marie Martin', run: 22000, facture: 15000, vente: 18000, ca_total: 55000, salaire: 4200, prime: 1500 } ], soldeActuel: 450000 };
   },
+  // Staff configuration paliers used by DotationForm
+  async getStaffConfig(guildId: string) {
+    await new Promise((r) => setTimeout(r, 250));
+    return {
+      paliers: [
+        { min: 0, max: 50000, taux: 15, sal_min_emp: 2500, sal_max_emp: 3500, sal_min_pat: 4000, sal_max_pat: 5500, pr_min_emp: 500, pr_max_emp: 1000, pr_min_pat: 1000, pr_max_pat: 2000 },
+        { min: 50001, max: 100000, taux: 25, sal_min_emp: 3500, sal_max_emp: 5000, sal_min_pat: 5500, sal_max_pat: 7500, pr_min_emp: 1000, pr_max_emp: 2000, pr_min_pat: 2000, pr_max_pat: 3500 },
+      ],
+    };
+  },
   async saveDotation(data: any) { await new Promise((r) => setTimeout(r, 400)); localStorage.setItem('dotation:last', JSON.stringify(data)); return {}; },
   async addArchiveEntry(guildId: string, entry: any) { await new Promise((r) => setTimeout(r, 150)); const key = `archives:${guildId}`; let list: any[] = []; try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch {} list.unshift(entry); localStorage.setItem(key, JSON.stringify(list)); return entry; },
   async getArchive(guildId: string, role: string, entreprise?: string) {

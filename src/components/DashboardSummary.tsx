@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "/src/components/ui/card";
-import { Badge } from "/src/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { DashboardSummary as IDashboard } from '@/lib/types';
 import { formatCurrencyDollar, formatPercentage, getISOWeek } from '@/lib/fmt';
 import { mockApi, handleApiError } from '@/lib/api';

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from "/src/components/ui/card";
-import { Button } from "/src/components/ui/button";
-import { Input } from "/src/components/ui/input";
-import { Label } from "/src/components/ui/label";
-import { Badge } from "/src/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "/src/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Role, CompanyConfig, CompanyConfigData, CalculParam, SalaryConfig, PrimeTier, Bracket } from '@/lib/types';
 import { getUserGuildRoles, resolveRole, canAccessCompanyConfig, getEntrepriseFromRoles, isStaff } from '@/lib/roles';
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';

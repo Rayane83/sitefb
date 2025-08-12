@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Role } from '@/lib/types';
-import { TabsTrigger } from "/src/components/ui/tabs";
+import { TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import { Lock } from 'lucide-react';
 

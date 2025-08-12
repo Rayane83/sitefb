@@ -149,12 +149,11 @@ const Index = () => {
       const result = Array.from(ids).map((id) => ({ id, name: id, icon: '' })) as Guild[];
       setGuilds(result);
 
-      // Auto-select principal guild if configured, otherwise first available
-      const preferred = conf.principalGuildId && result.find(g => g.id === conf.principalGuildId)
-        ? conf.principalGuildId
-        : result[0]?.id || '';
-      if (preferred) {
-        setSelectedGuildId(preferred);
+      // Auto-select principal guild if configured; otherwise use provided default ID; else first available
+      const defaultPrincipal = '1404608015230832742';
+      const targetGuildId = (conf.principalGuildId as string | undefined) || defaultPrincipal || result[0]?.id || '';
+      if (targetGuildId) {
+        setSelectedGuildId(targetGuildId);
       }
     } catch (e) {
       console.warn('loadGuilds error', e);
@@ -257,6 +256,14 @@ const Index = () => {
                     <UserIcon className="w-5 h-5 text-primary" />
                   )}
                 </div>
+                
+                <RoleGate allow={(role) => role === 'staff'} currentRole={currentRole}>
+                  <Link to="/superadmin" aria-label="Espace Superadmin" title="Espace Superadmin">
+                    <Button variant="outline" size="sm">
+                      <SettingsIcon className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                </RoleGate>
                 
                 <Button
                   variant="outline"

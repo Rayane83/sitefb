@@ -1,6 +1,7 @@
 // Centralised repository for Discord configuration
-// NOTE: This currently uses localStorage as a placeholder.
-// Once Supabase is fully connected, replace internals with Supabase tables.
+// NOTE: Uses Supabase when authenticated; falls back to localStorage otherwise.
+
+import { supabase } from "@/integrations/supabase/client";
 
 export type DiscordRoleMap = {
   staff?: string;
@@ -44,8 +45,29 @@ export type DiscordConfig = {
 
 const STORAGE_KEY = 'discord:config:v1';
 
+async function getSession() {
+  const { data } = await supabase.auth.getSession();
+  return data.session;
+}
+
 export const configRepo = {
   async get(): Promise<DiscordConfig> {
+    try {
+      // Try Supabase first if authenticated
+      const session = await getSession();
+      if (session) {
+        const { data, error } = await supabase
+          .from('discord_config')
+          .select('data')
+          .eq('id', 'default')
+          .maybeSingle();
+        if (error) throw error;
+        return (data?.data as DiscordConfig) || {};
+      }
+    } catch (e) {
+      // ignore and fallback
+      console.warn('configRepo.get supabase fallback:', e);
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return {};
@@ -55,6 +77,18 @@ export const configRepo = {
     }
   },
   async save(cfg: DiscordConfig): Promise<void> {
+    try {
+      const session = await getSession();
+      if (session) {
+        const { error } = await supabase
+          .from('discord_config')
+          .upsert({ id: 'default', data: cfg }, { onConflict: 'id' });
+        if (error) throw error;
+        return;
+      }
+    } catch (e) {
+      console.warn('configRepo.save supabase fallback:', e);
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
   },
 };

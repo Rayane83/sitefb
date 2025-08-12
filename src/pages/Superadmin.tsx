@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { configRepo, DiscordConfig } from "@/lib/configRepo";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const DEFAULTS: DiscordConfig = {
   clientId: "1402231031804723210",
@@ -37,6 +39,7 @@ export default function SuperadminPage() {
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
 
   const guildParam = useMemo(() => new URLSearchParams(location.search).get("guild") || "", [location.search]);
 
@@ -103,6 +106,33 @@ export default function SuperadminPage() {
     setCfg(prev => ({ ...prev, superadmins: { userIds: current.filter(x => x !== id) } }));
   };
 
+  const handleHealth = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('discord-health');
+      if (error || !(data as any)?.ok) {
+        throw new Error((error as any)?.message || (data as any)?.error || 'Erreur inconnue');
+      }
+      const bot = (data as any).bot;
+      toast({ title: 'Bot opérationnel', description: `${bot.username}#${bot.discriminator}` });
+    } catch (e: any) {
+      toast({ title: 'Bot non joignable', description: String(e.message || e), variant: 'destructive' });
+    }
+  };
+
+  const handleSync = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('discord-sync');
+      if (error || !(data as any)?.ok) {
+        throw new Error((error as any)?.message || (data as any)?.error || 'Erreur inconnue');
+      }
+      const res = data as any;
+      const okCount = (res.guilds || []).filter((g: any) => g.ok).length;
+      toast({ title: 'Synchronisation vérifiée', description: `${okCount} serveur(s) Discord ok` });
+    } catch (e: any) {
+      toast({ title: 'Erreur de synchronisation', description: String(e.message || e), variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <header className="mb-6">
@@ -129,6 +159,10 @@ export default function SuperadminPage() {
               <Label>Client Secret</Label>
               <Input value={"••••••••••••••"} readOnly aria-readonly />
               <p className="text-xs text-muted-foreground">Le Client Secret doit être configuré via Supabase Secrets.</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="secondary" onClick={handleHealth}>Tester le bot</Button>
+              <Button variant="outline" onClick={handleSync}>Vérifier la synchro</Button>
             </div>
           </CardContent>
         </Card>

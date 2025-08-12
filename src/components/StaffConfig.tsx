@@ -7,10 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Bracket, Wealth } from "@/lib/types";
-import { apiGet, apiPost, handleApiError, mockApi } from "@/lib/api";
-import { AlertCircle, Database, Factory, Plus, Save, Sparkles } from "lucide-react";
+import { apiGet, apiPost, handleApiError } from "@/lib/api";
+import { AlertCircle, Database, Factory, Plus, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StaffConfigProps {
   guildId: string;
@@ -42,7 +43,13 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
       setLoading(true);
       setError(null);
       try {
-        const list = await mockApi.getEntreprises(guildId);
+        const { data, error: err } = await supabase
+          .from('enterprises')
+          .select('key,name,role_id')
+          .eq('guild_id', guildId)
+          .order('name', { ascending: true });
+        if (err) throw err;
+        const list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined }));
         if (!alive) return;
         setEntreprises(list);
         setSelectedEntreprise((prev) => prev || list[0]?.id || "");
@@ -77,13 +84,23 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
       setLoading(true);
       setError(null);
       try {
-        const [tb, w] = await Promise.all([
-          mockApi.getTaxBrackets(guildId, selectedEntreprise),
-          mockApi.getWealth(guildId, selectedEntreprise),
-        ]);
+        const { data: tb, error: e1 } = await supabase
+          .from('tax_brackets')
+          .select('min,max,taux,sal_min_emp,sal_max_emp,sal_min_pat,sal_max_pat,pr_min_emp,pr_max_emp,pr_min_pat,pr_max_pat')
+          .eq('guild_id', guildId)
+          .eq('entreprise_key', selectedEntreprise)
+          .order('min', { ascending: true });
+        const { data: w, error: e2 } = await supabase
+          .from('wealth_brackets')
+          .select('min,max,taux')
+          .eq('guild_id', guildId)
+          .eq('entreprise_key', selectedEntreprise)
+          .order('min', { ascending: true });
+        if (e1) throw e1;
+        if (e2) throw e2;
         if (!alive) return;
-        setTaxBrackets(tb);
-        setWealth(w);
+        setTaxBrackets((tb as any) || []);
+        setWealth((w as any) || []);
       } catch (e) {
         if (alive) setError(handleApiError(e));
       } finally {
@@ -128,9 +145,16 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     async function loadBlanchiment() {
       if (!scope) return;
       try {
-        const state = await mockApi.getBlanchimentState(scope);
+        if (!selectedEntreprise) { setBlanchimentEnabled(false); return; }
+        const { data: s, error: e3 } = await supabase
+          .from('blanchiment_settings')
+          .select('enabled')
+          .eq('guild_id', guildId)
+          .eq('entreprise_key', selectedEntreprise)
+          .maybeSingle();
+        if (e3) throw e3;
         if (!alive) return;
-        setBlanchimentEnabled(!!state?.enabled);
+        setBlanchimentEnabled(!!s?.enabled);
       } catch {
         // ignore
       }
@@ -190,7 +214,9 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
   const toggleBlanchiment = async (checked: boolean) => {
     setBlanchimentEnabled(checked);
     try {
-      await mockApi.saveBlanchimentState(scope, checked);
+      await supabase
+        .from('blanchiment_settings')
+        .upsert({ guild_id: guildId, entreprise_key: selectedEntreprise, enabled: checked, use_global: true });
       toast({ title: checked ? 'Blanchiment activé' : 'Blanchiment désactivé', description: selectedEntreprise ? `Entreprise: ${selectedEntreprise}` : undefined });
     } catch (e) {
       setBlanchimentEnabled(!checked);
@@ -202,9 +228,15 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     if (!guildId || !selectedEntreprise) return;
     try {
       const payload = { id: selectedEntreprise, name: entName.trim(), roleId: entRoleId.trim() };
-      await mockApi.upsertEntreprise(guildId, payload);
+      await supabase.from('enterprises').upsert({ guild_id: guildId, key: selectedEntreprise, name: entName.trim(), role_id: entRoleId.trim() });
       toast({ title: 'Entreprise mise à jour', description: payload.name });
-      const list = await mockApi.getEntreprises(guildId);
+      const { data, error: err } = await supabase
+        .from('enterprises')
+        .select('key,name,role_id')
+        .eq('guild_id', guildId)
+        .order('name', { ascending: true });
+      if (err) throw err;
+      const list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined }));
       setEntreprises(list);
     } catch (e) {
       toast({ title: 'Erreur', description: handleApiError(e), variant: 'destructive' });
@@ -235,28 +267,6 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     }
   };
 
-  const seedAll = async () => {
-    if (!guildId || !selectedEntreprise) return;
-    setLoading(true);
-    try {
-      await Promise.all([
-        apiPost("/api_proxy/config/tax-brackets/seed", { entreprise: selectedEntreprise }, { guildId, role: currentRole }),
-        apiPost("/api_proxy/config/wealth/seed", { entreprise: selectedEntreprise }, { guildId, role: currentRole }),
-      ]);
-      toast({ title: "Préremplissage effectué", description: "Les valeurs par défaut ont été chargées." });
-      // Recharger
-      const [tb, w] = await Promise.all([
-        mockApi.getTaxBrackets(guildId, selectedEntreprise),
-        mockApi.getWealth(guildId, selectedEntreprise),
-      ]);
-      setTaxBrackets(tb);
-      setWealth(w);
-    } catch (e) {
-      toast({ title: "Erreur de seed", description: handleApiError(e), variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -321,9 +331,6 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
           <div className="flex items-end gap-2">
             <Button onClick={saveAll} disabled={loading} className="btn-discord">
               <Save className="w-4 h-4 mr-2" /> Enregistrer barèmes
-            </Button>
-            <Button onClick={seedAll} disabled={loading} variant="outline">
-              <Sparkles className="w-4 h-4 mr-2" /> Préremplir
             </Button>
           </div>
         </CardContent>

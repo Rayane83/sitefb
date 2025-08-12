@@ -1,23 +1,12 @@
 import type { Role, UserGuildRole } from './types';
 
-// Simulation de l'authentification Discord et des rôles
+// Récupération des rôles d'un utilisateur pour une guilde
+// En production, ceci doit venir de Discord via un backend sécurisé.
+// Pour l’instant, on ne simule plus de rôles côté frontend.
 export function getUserGuildRoles(guildId: string): Promise<string[]> {
-  // Simulation des rôles Discord pour une guilde
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Mock data - en réalité, ça viendrait de l'API Discord
-      const mockRoles = {
-        '123456789': ['Staff', 'Moderator'],
-        '987654321': ['Patron', 'Employé Bennys'],
-        '456789123': ['Co-Patron', 'Employé Bennys'],
-        '789123456': ['DOT', 'Employé Bennys'],
-        'default': ['Employé Bennys']
-      };
-      
-      resolve(mockRoles[guildId as keyof typeof mockRoles] || mockRoles.default);
-    }, 500);
-  });
+  return Promise.resolve([]);
 }
+
 
 export function resolveRole(roles: string[]): Role {
   // Hiérarchie des rôles (du plus important au moins important)

@@ -160,10 +160,6 @@ export default function SuperadminPage() {
               <Input value={"••••••••••••••"} readOnly aria-readonly />
               <p className="text-xs text-muted-foreground">Le Client Secret doit être configuré via Supabase Secrets.</p>
             </div>
-            <div className="flex gap-2 pt-2">
-              <Button variant="secondary" onClick={handleHealth}>Tester le bot</Button>
-              <Button variant="outline" onClick={handleSync}>Vérifier la synchro</Button>
-            </div>
           </CardContent>
         </Card>
 

@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
-const Index = () => {
+import { supabase } from '@/integrations/supabase/client';
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -59,58 +59,61 @@ const Index = () => {
   // Loading state
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 
+  // Supabase auth session
+  useEffect(() => {
+    let unsub: any;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const sess = data.session;
+      setIsLoggedIn(!!sess);
+      if (sess) {
+        const u = sess.user;
+        setUser({
+          id: u.id,
+          name: (u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Utilisateur') as string,
+          avatar: (u.user_metadata?.avatar_url || u.user_metadata?.avatar) as string | undefined,
+          discriminator: ''
+        } as any);
+        await loadGuilds();
+      }
+      const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        setIsLoggedIn(!!session);
+        if (session) {
+          const u2 = session.user;
+          setUser({
+            id: u2.id,
+            name: (u2.user_metadata?.full_name || u2.user_metadata?.name || u2.email || 'Utilisateur') as string,
+            avatar: (u2.user_metadata?.avatar_url || u2.user_metadata?.avatar) as string | undefined,
+            discriminator: ''
+          } as any);
+          await loadGuilds();
+        } else {
+          setUser(null);
+          setGuilds([]);
+          setSelectedGuildId('');
+        }
+      });
+      unsub = sub?.subscription;
+    })();
+    return () => { try { unsub?.unsubscribe?.(); } catch {} };
+  }, []);
+
   // Active tab
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // Superadmin access (prod: implement real auth/RBAC)
-  const isSuperAdmin = (user?.id === '462716512252329996') || (new URLSearchParams(window.location.search).get('superadmin') === '1');
 
-  // Mock login function
-  const handleLogin = () => {
-    // Simulate Discord OAuth
-    const mockUser: User = {
-      id: '123456789',
-      name: 'Jean Dupont',
-      avatar: 'https://cdn.discordapp.com/avatars/123456789/avatar.png',
-      discriminator: '1234'
-    };
-
-    const mockGuilds: Guild[] = [
-      {
-        id: '123456789',
-        name: 'Serveur Bennys',
-        icon: 'https://cdn.discordapp.com/icons/123456789/icon.png'
+  // Login via Supabase OAuth (Discord)
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'discord',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname + window.location.search,
       },
-      {
-        id: '987654321',
-        name: 'Serveur Unicorn',
-        icon: 'https://cdn.discordapp.com/icons/987654321/icon.png'
-      },
-      {
-        id: '456789123',
-        name: 'Serveur LSC',
-        icon: 'https://cdn.discordapp.com/icons/456789123/icon.png'
-      }
-    ];
-
-    setUser(mockUser);
-    setGuilds(mockGuilds);
-    setIsLoggedIn(true);
-    
-    // Set default guild from URL params or first guild
-    const urlParams = new URLSearchParams(window.location.search);
-    const guildParam = urlParams.get('guild');
-    const initialGuild = guildParam && mockGuilds.find(g => g.id === guildParam) 
-      ? guildParam 
-      : mockGuilds[0]?.id || '';
-    
-    if (initialGuild) {
-      setSelectedGuildId(initialGuild);
-      updateURLGuild(initialGuild);
-    }
+    });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsLoggedIn(false);
     setUser(null);
     setGuilds([]);
@@ -118,6 +121,45 @@ const Index = () => {
     setCurrentRole('employe');
     setEntreprise('');
     setUserRoles([]);
+  };
+
+  // Load available guilds from Supabase config and DB
+  const loadGuilds = async () => {
+    try {
+      const ids = new Set<string>();
+      const { data: dc } = await supabase
+        .from('discord_config')
+        .select('data')
+        .eq('id', 'default')
+        .maybeSingle();
+      const conf = (dc?.data as any) || {};
+      if (conf.principalGuildId) ids.add(conf.principalGuildId);
+      if (conf.dot?.guildId) ids.add(conf.dot.guildId);
+      if (conf.enterprises) {
+        Object.values(conf.enterprises as any).forEach((e: any) => { if (e?.guildId) ids.add(e.guildId); });
+      }
+      const { data: ents } = await supabase
+        .from('enterprises')
+        .select('guild_id,name')
+        .order('name', { ascending: true });
+      ents?.forEach((e: any) => { if (e.guild_id) ids.add(e.guild_id); });
+
+      const result = Array.from(ids).map((id) => ({ id, name: id, icon: '' })) as Guild[];
+      setGuilds(result);
+
+      // Set default guild from URL params or first guild
+      const urlParams = new URLSearchParams(window.location.search);
+      const guildParam = urlParams.get('guild');
+      const initialGuild = guildParam && result.find((g) => g.id === guildParam)
+        ? guildParam
+        : result[0]?.id || '';
+      if (initialGuild) {
+        setSelectedGuildId(initialGuild);
+        updateURLGuild(initialGuild);
+      }
+    } catch (e) {
+      console.warn('loadGuilds error', e);
+    }
   };
 
   // Update URL when guild changes
@@ -170,7 +212,6 @@ const Index = () => {
     };
   }, [selectedGuildId]);
 
-  // Show login screen if not authenticated
   if (!isLoggedIn) {
     return <LoginScreen onLogin={handleLogin} />;
   }
@@ -234,21 +275,7 @@ const Index = () => {
                   <LogOut className="w-4 h-4" />
                 </Button>
 
-                {canAccessCompanyConfig(currentRole) && (
-                  <Link to={`/company-config?guild=${selectedGuildId}`} aria-label="Configuration d’entreprise" title="Configuration d’entreprise">
-                    <Button variant="outline" size="sm">
-                      <SettingsIcon className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                )}
 
-                {isSuperAdmin && (
-                  <Link to={`/superadmin?guild=${selectedGuildId}`} aria-label="Superadmin" title="Superadmin">
-                    <Button variant="outline" size="sm">
-                      <Shield className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                )}
               </div>
             </div>
           </div>

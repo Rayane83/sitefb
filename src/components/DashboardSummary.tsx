@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DashboardSummary as IDashboardSummary } from '@/lib/types';
 import { formatCurrencyDollar, formatPercentage, getISOWeek } from '@/lib/fmt';
-import { mockApi, handleApiError } from '@/lib/api';
+import { handleApiError } from '@/lib/api';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -21,78 +21,21 @@ interface DashboardSummaryProps {
 export function DashboardSummary({ guildId }: DashboardSummaryProps) {
   const [summary, setSummary] = useState<IDashboardSummary | null>(null);
   const [employeeCount, setEmployeeCount] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let alive = true;
-
-    async function fetchData() {
-      if (!guildId) return;
-      
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // Fetch summary
-        const summaryData = await mockApi.getDashboardSummary(guildId);
-        
-        if (!alive) return;
-        setSummary(summaryData);
-
-        // Fallback pour employee_count si absent
-        if (!summaryData.employee_count) {
-          try {
-            const countData = await mockApi.getEmployeeCount(guildId, 'Employé Bennys');
-            if (alive) {
-              setEmployeeCount(countData.count);
-            }
-          } catch (countError) {
-            console.warn('Failed to fetch employee count:', countError);
-          }
-        }
-      } catch (err) {
-        if (alive) {
-          setError(handleApiError(err));
-        }
-      } finally {
-        if (alive) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    fetchData();
-
-    return () => {
-      alive = false;
-    };
+    setIsLoading(false);
+    setSummary(null);
+    setError(null);
   }, [guildId]);
 
   const currentWeek = getISOWeek();
   const finalEmployeeCount = summary?.employee_count ?? employeeCount ?? 0;
 
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Dashboard</h2>
-          <Badge variant="outline">Semaine {currentWeek}</Badge>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i} className="stat-card">
-              <CardContent className="p-6">
-                <div className="animate-pulse">
-                  <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-                  <div className="h-8 bg-muted rounded w-1/2"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
+    // plus de chargement de mock
+    return null;
   }
 
   if (error) {
@@ -118,20 +61,7 @@ export function DashboardSummary({ guildId }: DashboardSummaryProps) {
   }
 
   if (!summary) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Dashboard</h2>
-          <Badge variant="outline">Semaine {currentWeek}</Badge>
-        </div>
-        <Card className="stat-card">
-          <CardContent className="p-6 text-center text-muted-foreground">
-            <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>Aucune donnée disponible</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return null;
   }
 
   return (

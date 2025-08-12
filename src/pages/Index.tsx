@@ -35,7 +35,7 @@ import { Role, Guild, User } from '@/lib/types';
 import { 
   BarChart3, 
   Calculator, 
-  Receipt, 
+  FileText, 
   Shield, 
   Archive, 
   Settings, 
@@ -331,7 +331,7 @@ const Index = () => {
                 asTabTrigger
                 value="impot"
               >
-                <Receipt className="w-4 h-4 mr-2" />
+                <FileText className="w-4 h-4 mr-2" />
                 Impôts
               </RoleGate>
               
@@ -341,8 +341,8 @@ const Index = () => {
                 asTabTrigger
                 value="docs"
               >
-                <Receipt className="w-4 h-4 mr-2" />
-                Docs
+                <FileText className="w-4 h-4 mr-2" />
+                Factures/Diplômes
               </RoleGate>
               
               <RoleGate

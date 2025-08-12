@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BlanchimentState } from '@/lib/types';
 import { formatCurrencyDollar, parseNumber } from '@/lib/fmt';
-import { mockApi, handleApiError } from '@/lib/api';
+import { handleApiError } from '@/lib/api';
 import { 
   Shield, 
   ShieldCheck, 
@@ -17,6 +17,7 @@ import {
   Copy
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from "@/integrations/supabase/client";
 
 interface BlanchimentToggleProps {
   guildId: string;
@@ -49,10 +50,20 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
       setError(null);
 
       try {
-        const stateData = await mockApi.getBlanchimentState(scope);
-        
+        const { data, error } = await supabase
+          .from('blanchiment_settings')
+          .select('*')
+          .eq('guild_id', guildId)
+          .eq('entreprise_key', entreprise)
+          .maybeSingle();
+        if (error) throw error;
         if (!alive) return;
-        setState(stateData);
+        setState(data ? {
+          enabled: !!data.enabled,
+          useGlobal: !!data.use_global,
+          percEntreprise: data.perc_entreprise ?? undefined,
+          percGroupe: data.perc_groupe ?? undefined,
+        } : { enabled: false, useGlobal: true });
       } catch (err) {
         if (alive) {
           setError(handleApiError(err));
@@ -74,41 +85,51 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
   const handleToggle = async (enabled: boolean) => {
     setIsSaving(true);
     try {
-      await mockApi.saveBlanchimentState(scope, enabled);
+      const { error } = await supabase
+        .from('blanchiment_settings')
+        .upsert({
+          guild_id: guildId,
+          entreprise_key: entreprise,
+          enabled,
+        }, { onConflict: 'guild_id,entreprise_key' });
+      if (error) throw error;
 
-      setState({ enabled });
-      
+      setState((prev) => ({ ...(prev || {}), enabled } as BlanchimentState));
       toast({
         title: enabled ? "Blanchiment activé" : "Blanchiment désactivé",
         description: `Le blanchiment a été ${enabled ? 'activé' : 'désactivé'} pour ${entreprise}`,
       });
     } catch (err) {
-      toast({
-        title: "Erreur",
-        description: handleApiError(err),
-        variant: "destructive",
-      });
+      toast({ title: "Erreur", description: handleApiError(err), variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   };
-  // Charger pourcentages globaux et lignes sauvegardées
+  // Charger pourcentages globaux et lignes sauvegardées via Supabase
   useEffect(() => {
     (async () => {
       try {
-        const gl = await mockApi.getBlanchimentGlobal(guildId);
-        setGlobalPercs(gl);
+        const { data: gl, error: ge } = await supabase
+          .from('blanchiment_global')
+          .select('*')
+          .eq('guild_id', guildId)
+          .maybeSingle();
+        if (!ge && gl) setGlobalPercs({
+          percEntreprise: Number(gl.perc_entreprise ?? 15),
+          percGroupe: Number(gl.perc_groupe ?? 80),
+        });
       } catch {}
       try {
-        const raw = localStorage.getItem(`blanchiment:rows:${scope}`);
-        if (raw) setRows(JSON.parse(raw));
+        const { data: rs, error: re } = await supabase
+          .from('blanchiment_rows')
+          .select('*')
+          .eq('guild_id', guildId)
+          .eq('entreprise_key', entreprise)
+          .order('created_at', { ascending: false });
+        if (!re) setRows((rs || []) as any[]);
       } catch {}
     })();
-  }, [guildId, scope]);
-
-  useEffect(() => {
-    try { localStorage.setItem(`blanchiment:rows:${scope}`, JSON.stringify(rows)); } catch {}
-  }, [rows, scope]);
+  }, [guildId, entreprise]);
 
   const percEntrepriseEff = (state?.useGlobal ? globalPercs?.percEntreprise : state?.percEntreprise) ?? 0;
   const percGroupeEff = (state?.useGlobal ? globalPercs?.percGroupe : state?.percGroupe) ?? 0;

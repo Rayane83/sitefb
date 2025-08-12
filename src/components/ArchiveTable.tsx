@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
-import { mockApi, handleApiError } from '@/lib/api';
+import { handleApiError } from '@/lib/api';
 import { debounce } from '@/lib/fmt';
 import { 
   Search, 
@@ -23,6 +23,7 @@ import {
   Trash2,
   FileSpreadsheet
 } from 'lucide-react';
+import { supabase } from "@/integrations/supabase/client";
 
 interface ArchiveTableProps {
   guildId: string;
@@ -59,12 +60,19 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
       setError(null);
 
       try {
-        const archiveData = await mockApi.getArchive(guildId, currentRole, entreprise);
-        
+        // Charger depuis Supabase
+        let q: any = supabase
+          .from('archives')
+          .select('*')
+          .eq('guild_id', guildId)
+          .order('created_at', { ascending: false });
+        if (entreprise) q = q.eq('entreprise_key', entreprise);
+        const { data, error: dbError } = await q;
+        if (dbError) throw dbError;
+
         if (!alive) return;
-        
-        // Normalise le format (peut être { rows: any[] } ou any[])
-        const normalizedRows = Array.isArray(archiveData) ? archiveData : (archiveData as any)?.rows || [];
+
+        const normalizedRows = (data as any[]) || [];
         setRows(normalizedRows);
       } catch (err) {
         if (alive) {

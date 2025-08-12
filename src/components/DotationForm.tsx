@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DotationData, DotationRow, PalierConfig } from '@/lib/types';
 import { formatCurrencyDollar, parseNumber, calculateFromPaliers, generateId } from '@/lib/fmt';
-import { mockApi, handleApiError } from '@/lib/api';
+import { handleApiError } from '@/lib/api';
 import { 
   Plus, 
   Save, 
@@ -18,6 +18,7 @@ import {
   Archive
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from "@/integrations/supabase/client";
 
 interface DotationFormProps {
   guildId: string;
@@ -47,38 +48,74 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
       setIsLoading(true);
       setError(null);
 
-      try {
-        // Fetch paliers et dotation en parallèle
-        const [paliersData, dotationResult] = await Promise.all([
-          mockApi.getStaffConfig(guildId),
-          mockApi.getDotation(guildId, entreprise)
-        ]);
+        try {
+          // Charger paliers depuis Supabase
+          const { data: brk, error: e1 } = await supabase
+            .from('tax_brackets')
+            .select('*')
+            .eq('guild_id', guildId)
+            .eq('entreprise_key', entreprise);
+          if (e1) throw e1;
 
-        if (!alive) return;
+          let paliersToUse: PalierConfig[] = (brk || []).map((b: any) => ({
+            min: Number(b.min) || 0,
+            max: b.max === null || b.max === undefined ? Number((Number(b.min) || 0) + 1e12) : Number(b.max),
+            taux: Number(b.taux) || 0,
+            sal_min_emp: Number(b.sal_min_emp) || 0,
+            sal_max_emp: Number(b.sal_max_emp) || 0,
+            sal_min_pat: Number(b.sal_min_pat) || 0,
+            sal_max_pat: Number(b.sal_max_pat) || 0,
+            pr_min_emp: Number(b.pr_min_emp) || 0,
+            pr_max_emp: Number(b.pr_max_emp) || 0,
+            pr_min_pat: Number(b.pr_min_pat) || 0,
+            pr_max_pat: Number(b.pr_max_pat) || 0,
+          }));
 
-        {
-          const raw = localStorage.getItem(`company-config:${guildId}:_`);
-          let paliersToUse = paliersData.paliers;
-          try {
-            if (raw) {
-              const data = JSON.parse(raw);
-              if (Array.isArray(data.salaryPrimesPaliers)) {
-                paliersToUse = data.salaryPrimesPaliers;
-              }
-            }
-          } catch {}
           setPaliers(paliersToUse);
+
+          // Charger dernier rapport de dotation (si existe)
+          const { data: reps, error: e2 } = await supabase
+            .from('dotation_reports')
+            .select('id, solde_actuel, totals, employees_count')
+            .eq('guild_id', guildId)
+            .eq('entreprise_key', entreprise)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          if (e2) throw e2;
+
+          if (reps && reps.length > 0) {
+            const rep = reps[0];
+            const { data: rows, error: e3 } = await supabase
+              .from('dotation_rows')
+              .select('*')
+              .eq('report_id', rep.id);
+            if (e3) throw e3;
+
+            const mappedRows: DotationRow[] = (rows || []).map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              run: Number(r.run) || 0,
+              facture: Number(r.facture) || 0,
+              vente: Number(r.vente) || 0,
+              ca_total: Number(r.ca_total) || 0,
+              salaire: Number(r.salaire) || 0,
+              prime: Number(r.prime) || 0,
+            }));
+
+            setDotationData({ rows: mappedRows, soldeActuel: Number(rep.solde_actuel) || 0 });
+          } else {
+            // Valeurs par défaut
+            setDotationData({ rows: [], soldeActuel: 0 });
+          }
+        } catch (err) {
+          if (alive) {
+            setError(handleApiError(err));
+          }
+        } finally {
+          if (alive) {
+            setIsLoading(false);
+          }
         }
-        setDotationData(dotationResult);
-      } catch (err) {
-        if (alive) {
-          setError(handleApiError(err));
-        }
-      } finally {
-        if (alive) {
-          setIsLoading(false);
-        }
-      }
     }
 
     fetchData();
@@ -151,17 +188,39 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
       const totalExpenses = expenses.reduce((sum, r) => sum + r.amount, 0);
       const totalWithdrawals = withdrawals.reduce((sum, r) => sum + r.amount, 0);
 
-      await mockApi.saveDotation({
-        guildId,
-        role: currentRole,
-        entreprise,
-        soldeActuel: dotationData.soldeActuel,
-        rows: dotationData.rows,
-        expenses: totalExpenses,
-        withdrawals: totalWithdrawals,
-        commissions: dotationData.commissions,
-        interInvoices: dotationData.interInvoices,
-      });
+      // Créer le rapport + lignes dans Supabase
+      const { data: repIns, error: repErr } = await supabase
+        .from('dotation_reports')
+        .insert({
+          guild_id: guildId,
+          entreprise_key: entreprise,
+          solde_actuel: dotationData.soldeActuel,
+          totals: {
+            totalExpenses,
+            totalWithdrawals,
+            totalCA,
+            totalSalaires,
+            totalPrimes,
+          },
+          employees_count: dotationData.rows.length,
+        })
+        .select('id')
+        .single();
+      if (repErr) throw repErr;
+
+      const rowsPayload = dotationData.rows.map(r => ({
+        report_id: repIns!.id,
+        name: r.name,
+        run: r.run,
+        facture: r.facture,
+        vente: r.vente,
+        ca_total: r.ca_total,
+        salaire: r.salaire,
+        prime: r.prime,
+      }));
+      const { error: rowsErr } = await supabase.from('dotation_rows').insert(rowsPayload);
+      if (rowsErr) throw rowsErr;
+
 
       toast({
         title: "Sauvegarde réussie",
@@ -251,7 +310,6 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
     if (!dotationData) return;
     try {
       const entry = {
-        id: generateId(),
         date: new Date().toISOString(),
         type: 'Dotation',
         entreprise,
@@ -265,7 +323,15 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
           employeesCount: dotationData.rows.length,
         }
       };
-      await mockApi.addArchiveEntry(guildId, entry);
+      const { error: archErr } = await supabase.from('archives').insert({
+        guild_id: guildId,
+        entreprise_key: entreprise,
+        type: entry.type,
+        payload: entry.payload as any,
+        statut: entry.statut,
+        date: entry.date,
+      });
+      if (archErr) throw archErr;
       toast({ title: 'Envoyé aux archives', description: 'Le rapport a été archivé.' });
     } catch (e) {
       toast({ title: 'Erreur', description: 'Impossible d’archiver.', variant: 'destructive' });

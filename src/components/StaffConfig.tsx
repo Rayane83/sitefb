@@ -12,6 +12,7 @@ import { AlertCircle, Database, Factory, Plus, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import { configRepo } from "@/lib/configRepo";
 
 interface StaffConfigProps {
   guildId: string;
@@ -52,7 +53,20 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
           .eq('guild_id', guildId)
           .order('name', { ascending: true });
         if (err) throw err;
-        const list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined }));
+        let list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined }));
+
+        // Fallback sur la config Superadmin si la table est vide
+        if (!list.length) {
+          const cfg = await configRepo.get();
+          const entries = Object.entries(cfg.enterprises || {});
+          list = entries.map(([name, d]: any) => ({
+            id: name,
+            name,
+            roleId: d?.roleId || undefined,
+            employeeRoleId: d?.employeeRoleId || undefined,
+          }));
+        }
+
         if (!alive) return;
         setEntreprises(list);
         setSelectedEntreprise((prev) => prev || list[0]?.id || "");
@@ -314,7 +328,6 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
           Configuration Staff
         </h2>
         <div className="flex items-center gap-2">
-          <Badge variant="outline">{guildId}</Badge>
           {selectedEntreprise && <Badge variant="secondary">{selectedEntreprise}</Badge>}
         </div>
       </div>

@@ -37,23 +37,44 @@ export function resolveRole(roles: string[]): Role {
 }
 
 export function getEntrepriseFromRoles(roles: string[]): string {
-  // Tente de déduire l'entreprise depuis plusieurs formats de rôles
-  // Ex: "Employé Bennys", "Emp Bennys", "Patron Bennys", "Co-Patron Bennys", "DOT Bennys"
-  const patterns = [
-    /^(?:employ[eé]|emp)\s+(.+)$/i,
-    /^(?:patron)\s+(.+)$/i,
-    /^(?:co-?patron)\s+(.+)$/i,
-    /^(?:dot)\s+(.+)$/i,
+  // Déduit l'entreprise depuis différents formats de rôles
+  // Gère: "Employé Bennys", "Emp Bennys", "Patron Bennys", "Co-Patron Bennys", "DOT Bennys",
+  //       "Bennys Patron", "Bennys - Patron", "Patron • Bennys", etc.
+  const sep = "[\\s\\-\\|•:>]+"; // séparateurs courants
+  const leadRe = new RegExp(`^(?:employ[eé]|emp|patron|co-?patron|copatron|dot)${sep}(.+)$`, 'i');
+  const trailRe = new RegExp(`^(.+)${sep}(?:employ[eé]|emp|patron|co-?patron|copatron|dot)$`, 'i');
+
+  const bannedTokens = [
+    'staff', 'patron', 'co-patron', 'copatron', 'employe', 'employé', 'emp', 'dot',
+    '@everyone', 'everyone', 'bot'
   ];
-  for (const r of roles) {
-    const role = r.trim();
-    for (const p of patterns) {
-      const m = role.match(p);
-      if (m && m[1]) {
-        return m[1].trim();
-      }
+
+  for (const raw of roles) {
+    const r = raw
+      .normalize('NFD').replace(/\p{Diacritic}/gu, '') // retire accents
+      .replace(/[\[\]\(\)]/g, '') // retire crochets
+      .trim();
+
+    const m1 = r.match(leadRe);
+    if (m1?.[1]) return m1[1].trim();
+
+    const m2 = r.match(trailRe);
+    if (m2?.[1]) return m2[1].trim();
+  }
+
+  // Heuristique de secours: si un rôle ne contient aucun mot-clé connu, on le considère comme nom d'entreprise
+  for (const raw of roles) {
+    const r = raw
+      .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+      .replace(/[\[\]\(\)]/g, '')
+      .trim();
+    const lower = r.toLowerCase();
+    const isBanned = bannedTokens.some(t => lower.includes(t));
+    if (!isBanned && r.length >= 2) {
+      return r;
     }
   }
+
   return 'Aucune Entreprise';
 }
 

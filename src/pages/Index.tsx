@@ -392,7 +392,7 @@ const Index = () => {
 
             <TabsContent value="impot" className="space-y-6">
               <RoleGate allow={canAccessImpot} currentRole={currentRole}>
-                <ImpotForm />
+                <ImpotForm guildId={selectedGuildId} entreprise={entreprise} />
               </RoleGate>
             </TabsContent>
 

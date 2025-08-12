@@ -47,27 +47,10 @@ export function RoleGate({
   }
 
   if (!hasAccess) {
-    if (fallback) {
-      return <>{fallback}</>;
-    }
-    
-    return (
-      <div className="p-8 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10 mb-4">
-          <Lock className="w-8 h-8 text-destructive" />
-        </div>
-        <h3 className="text-lg font-semibold text-foreground mb-2">
-          Accès restreint
-        </h3>
-        <p className="text-muted-foreground mb-4">
-          Vous n'avez pas les permissions nécessaires pour accéder à cette section.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Rôle requis : {getAllowedRoles(allow).join(', ')}
-        </p>
-      </div>
-    );
+    // Ne rien afficher quand l'accès est refusé (sauf si un fallback explicite est fourni)
+    return fallback ? <>{fallback}</> : null;
   }
+
 
   return <>{children}</>;
 }

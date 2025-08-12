@@ -37,15 +37,26 @@ export function resolveRole(roles: string[]): Role {
 }
 
 export function getEntrepriseFromRoles(roles: string[]): string {
-  // Extrait l'entreprise depuis les rôles Discord
-  const entrepriseRole = roles.find(r => r.toLowerCase().includes('employé'));
-  if (entrepriseRole) {
-    // Ex: "Employé Bennys" -> "Bennys"
-    const match = entrepriseRole.match(/employé\s+(.+)/i);
-    return match ? match[1] : 'Entreprise Inconnue';
+  // Tente de déduire l'entreprise depuis plusieurs formats de rôles
+  // Ex: "Employé Bennys", "Emp Bennys", "Patron Bennys", "Co-Patron Bennys", "DOT Bennys"
+  const patterns = [
+    /^(?:employ[eé]|emp)\s+(.+)$/i,
+    /^(?:patron)\s+(.+)$/i,
+    /^(?:co-?patron)\s+(.+)$/i,
+    /^(?:dot)\s+(.+)$/i,
+  ];
+  for (const r of roles) {
+    const role = r.trim();
+    for (const p of patterns) {
+      const m = role.match(p);
+      if (m && m[1]) {
+        return m[1].trim();
+      }
+    }
   }
   return 'Aucune Entreprise';
 }
+
 
 // Prédicats pour les contrôles d'accès
 export function isStaff(role: Role): boolean {

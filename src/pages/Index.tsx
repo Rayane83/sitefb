@@ -62,6 +62,9 @@ const Index = () => {
   // Active tab
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // Superadmin access (prod: implement real auth/RBAC)
+  const isSuperAdmin = (user?.id === '462716512252329996') || (new URLSearchParams(window.location.search).get('superadmin') === '1');
+
   // Mock login function
   const handleLogin = () => {
     // Simulate Discord OAuth
@@ -235,6 +238,14 @@ const Index = () => {
                   <Link to={`/company-config?guild=${selectedGuildId}`} aria-label="Configuration d’entreprise" title="Configuration d’entreprise">
                     <Button variant="outline" size="sm">
                       <SettingsIcon className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                )}
+
+                {isSuperAdmin && (
+                  <Link to={`/superadmin?guild=${selectedGuildId}`} aria-label="Superadmin" title="Superadmin">
+                    <Button variant="outline" size="sm">
+                      <Shield className="w-4 h-4" />
                     </Button>
                   </Link>
                 )}

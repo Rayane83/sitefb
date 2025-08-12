@@ -200,23 +200,60 @@ const exportToExcel = () => {
     setModalOpen(true);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!selectedRow) return;
-    setRows(prev => prev.map(r => r.id === selectedRow.id ? { ...r, date: form.date, montant: form.montant, description: form.description } : r));
-    setModalOpen(false);
-    toast({ title: 'Modifié', description: 'La fiche a été mise à jour.' });
+    try {
+      const payload = {
+        date: form.date || null,
+        montant: form.montant || null,
+        payload: { ...(selectedRow.payload || {}), description: form.description }
+      };
+      const { data, error } = await supabase
+        .from('archives')
+        .update(payload)
+        .eq('id', selectedRow.id)
+        .select('*')
+        .maybeSingle();
+      if (error) throw error;
+      setRows(prev => prev.map(r => r.id === selectedRow.id ? (data || { ...r, ...payload }) : r));
+      setModalOpen(false);
+      toast({ title: 'Modifié', description: 'La fiche a été mise à jour.' });
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Mise à jour impossible.', variant: 'destructive' });
+    }
   };
 
-  const handleValidate = (row: any) => {
-    setRows(prev => prev.map(r => r.id === row.id ? { ...r, statut: 'Validé' } : r));
-    toast({ title: 'Statut mis à jour', description: 'La fiche a été validée.' });
+  const handleValidate = async (row: any) => {
+    try {
+      const { data, error } = await supabase
+        .from('archives')
+        .update({ statut: 'Validé' })
+        .eq('id', row.id)
+        .select('*')
+        .maybeSingle();
+      if (error) throw error;
+      setRows(prev => prev.map(r => r.id === row.id ? (data || { ...r, statut: 'Validé' }) : r));
+      toast({ title: 'Statut mis à jour', description: 'La fiche a été validée.' });
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Mise à jour du statut impossible.', variant: 'destructive' });
+    }
   };
 
-  const handleRefuse = (row: any) => {
-    setRows(prev => prev.map(r => r.id === row.id ? { ...r, statut: 'Refusé' } : r));
-    toast({ title: 'Statut mis à jour', description: 'La fiche a été refusée.' });
+  const handleRefuse = async (row: any) => {
+    try {
+      const { data, error } = await supabase
+        .from('archives')
+        .update({ statut: 'Refusé' })
+        .eq('id', row.id)
+        .select('*')
+        .maybeSingle();
+      if (error) throw error;
+      setRows(prev => prev.map(r => r.id === row.id ? (data || { ...r, statut: 'Refusé' }) : r));
+      toast({ title: 'Statut mis à jour', description: 'La fiche a été refusée.' });
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Mise à jour du statut impossible.', variant: 'destructive' });
+    }
   };
-
 const handleDelete = (row: any) => {
   if (!canDelete(row)) return;
   if (window.confirm('Supprimer cette fiche ?')) {

@@ -164,6 +164,63 @@ export type Database = {
         }
         Relationships: []
       }
+      company_configs: {
+        Row: {
+          config: Json
+          created_at: string
+          entreprise_key: string
+          guild_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          entreprise_key: string
+          guild_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          entreprise_key?: string
+          guild_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      company_prime_tiers: {
+        Row: {
+          created_at: string
+          entreprise_key: string
+          guild_id: string
+          id: string
+          prime: number
+          seuil: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entreprise_key: string
+          guild_id: string
+          id?: string
+          prime: number
+          seuil: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entreprise_key?: string
+          guild_id?: string
+          id?: string
+          prime?: number
+          seuil?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       discord_config: {
         Row: {
           created_at: string
@@ -294,6 +351,42 @@ export type Database = {
           key?: string
           name?: string
           role_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      grade_rules: {
+        Row: {
+          created_at: string
+          entreprise_key: string
+          grade: string
+          guild_id: string
+          id: string
+          pourcentage_ca: number
+          role_discord_id: string | null
+          taux_horaire: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entreprise_key: string
+          grade: string
+          guild_id: string
+          id?: string
+          pourcentage_ca?: number
+          role_discord_id?: string | null
+          taux_horaire?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entreprise_key?: string
+          grade?: string
+          guild_id?: string
+          id?: string
+          pourcentage_ca?: number
+          role_discord_id?: string | null
+          taux_horaire?: number
           updated_at?: string
         }
         Relationships: []

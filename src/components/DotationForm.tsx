@@ -34,6 +34,9 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Lecture seule pour Staff
+  const isStaffReadOnly = (currentRole || '').toLowerCase().includes('staff');
+
   // Tableaux simples: Dépense déductible et Tableau des retraits
   type SimpleEntry = { id: string; date: string; label: string; amount: number };
   const [expenses, setExpenses] = useState<SimpleEntry[]>([]);
@@ -367,6 +370,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                 setDotationData({ ...dotationData, soldeActuel: value });
               }}
               className="w-48"
+              disabled={isStaffReadOnly}
             />
           </div>
         </CardContent>
@@ -405,7 +409,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
           <CardTitle className="text-lg">Employés</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Astuce: collez depuis Excel (Nom, RUN, FACTURE, VENTE)</span>
-            <Button onClick={addEmployee} size="sm" className="btn-discord">
+            <Button onClick={addEmployee} size="sm" className="btn-discord" disabled={isStaffReadOnly}>
               <Plus className="w-4 h-4 mr-2" />
               Ajouter un employé
             </Button>
@@ -467,6 +471,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                         value={row.name}
                         onChange={(e) => updateRow(row.id, 'name', e.target.value)}
                         className="min-w-32"
+                        disabled={isStaffReadOnly}
                       />
                     </td>
                     <td className="p-2">
@@ -475,6 +480,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                         value={row.run}
                         onChange={(e) => updateRow(row.id, 'run', parseNumber(e.target.value))}
                         className="w-24 text-center"
+                        disabled={isStaffReadOnly}
                       />
                     </td>
                     <td className="p-2">
@@ -483,6 +489,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                         value={row.facture}
                         onChange={(e) => updateRow(row.id, 'facture', parseNumber(e.target.value))}
                         className="w-24 text-center"
+                        disabled={isStaffReadOnly}
                       />
                     </td>
                     <td className="p-2">
@@ -491,6 +498,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                         value={row.vente}
                         onChange={(e) => updateRow(row.id, 'vente', parseNumber(e.target.value))}
                         className="w-24 text-center"
+                        disabled={isStaffReadOnly}
                       />
                     </td>
                     <td className="p-2 text-center font-semibold text-primary">
@@ -507,6 +515,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                         size="sm"
                         variant="destructive"
                         onClick={() => removeEmployee(row.id)}
+                        disabled={isStaffReadOnly}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -539,7 +548,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
             <CardTitle className="text-lg">Dépense déductible</CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Collez: Date, Justificatif, Montant</span>
-              <Button size="sm" variant="outline" onClick={() => setExpenses((prev)=> [...prev, { id: generateId(), date: '', label: '', amount: 0 }])}>
+              <Button size="sm" variant="outline" onClick={() => setExpenses((prev)=> [...prev, { id: generateId(), date: '', label: '', amount: 0 }])} disabled={isStaffReadOnly}>
                 <Plus className="w-4 h-4 mr-2" />Ajouter
               </Button>
             </div>
@@ -575,11 +584,11 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                 <tbody>
                   {expenses.map((row, idx)=> (
                     <tr key={row.id} className="border-b hover:bg-muted/50">
-                      <td className="p-2"><Input value={row.date} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, date: e.target.value}:r))} /></td>
-                      <td className="p-2"><Input value={row.label} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, label: e.target.value}:r))} /></td>
-                      <td className="p-2"><Input type="number" className="w-28 text-center" value={row.amount} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, amount: parseNumber(e.target.value)}:r))} /></td>
+                      <td className="p-2"><Input value={row.date} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, date: e.target.value}:r))} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input value={row.label} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, label: e.target.value}:r))} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input type="number" className="w-28 text-center" value={row.amount} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, amount: parseNumber(e.target.value)}:r))} disabled={isStaffReadOnly} /></td>
                       <td className="p-2 text-center">
-                        <Button size="sm" variant="destructive" onClick={()=> setExpenses((prev)=> prev.filter((_,i)=> i!==idx))}>
+                        <Button size="sm" variant="destructive" onClick={()=> setExpenses((prev)=> prev.filter((_,i)=> i!==idx))} disabled={isStaffReadOnly}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </td>
@@ -600,7 +609,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
             <CardTitle className="text-lg">Tableau des retraits</CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Collez: Date, Justificatif, Montant</span>
-              <Button size="sm" variant="outline" onClick={() => setWithdrawals((prev)=> [...prev, { id: generateId(), date: '', label: '', amount: 0 }])}>
+              <Button size="sm" variant="outline" onClick={() => setWithdrawals((prev)=> [...prev, { id: generateId(), date: '', label: '', amount: 0 }])} disabled={isStaffReadOnly}>
                 <Plus className="w-4 h-4 mr-2" />Ajouter
               </Button>
             </div>
@@ -636,11 +645,11 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
                 <tbody>
                   {withdrawals.map((row, idx)=> (
                     <tr key={row.id} className="border-b hover:bg-muted/50">
-                      <td className="p-2"><Input value={row.date} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, date: e.target.value}:r))} /></td>
-                      <td className="p-2"><Input value={row.label} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, label: e.target.value}:r))} /></td>
-                      <td className="p-2"><Input type="number" className="w-28 text-center" value={row.amount} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, amount: parseNumber(e.target.value)}:r))} /></td>
+                      <td className="p-2"><Input value={row.date} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, date: e.target.value}:r))} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input value={row.label} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, label: e.target.value}:r))} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input type="number" className="w-28 text-center" value={row.amount} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, amount: parseNumber(e.target.value)}:r))} disabled={isStaffReadOnly} /></td>
                       <td className="p-2 text-center">
-                        <Button size="sm" variant="destructive" onClick={()=> setWithdrawals((prev)=> prev.filter((_,i)=> i!==idx))}>
+                        <Button size="sm" variant="destructive" onClick={()=> setWithdrawals((prev)=> prev.filter((_,i)=> i!==idx))} disabled={isStaffReadOnly}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </td>
@@ -660,7 +669,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
       <div className="flex flex-wrap gap-4">
         <Button
           onClick={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || isStaffReadOnly}
           className="btn-discord"
         >
           {isSaving ? (
@@ -676,6 +685,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
         <Button
           onClick={handleSendToArchive}
           variant="outline"
+          disabled={isStaffReadOnly}
         >
           <Archive className="w-4 h-4 mr-2" />
           Envoyer aux archives

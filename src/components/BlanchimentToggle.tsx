@@ -32,6 +32,7 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
   const [error, setError] = useState<string | null>(null);
   
   const isStaff = currentRole.toLowerCase().includes('staff');
+  const isStaffReadOnly = isStaff; // Staff en lecture seule
   const [globalPercs, setGlobalPercs] = useState<{ percEntreprise: number; percGroupe: number } | null>(null);
   const [rows, setRows] = useState<any[]>([]);
   
@@ -150,7 +151,69 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
       return next;
     }));
   };
-  const removeRow = (id: number) => setRows(prev => prev.filter(r => r.id !== id));
+
+  const saveRows = async () => {
+    if (isStaffReadOnly) return;
+    try {
+      const existing = rows.filter((r: any) => typeof r.id === 'string');
+      const created = rows.filter((r: any) => typeof r.id !== 'string');
+
+      if (existing.length) {
+        for (const r of existing) {
+          const payload = {
+            statut: r.statut,
+            date_recu: r.date_recu || null,
+            date_rendu: r.date_rendu || null,
+            duree: r.duree || null,
+            groupe: r.groupe,
+            employe: r.employe,
+            donneur_id: r.donneur_id,
+            recep_id: r.recep_id,
+            somme: r.somme,
+          };
+          const { error } = await supabase.from('blanchiment_rows').update(payload).eq('id', r.id);
+          if (error) throw error;
+        }
+      }
+
+      if (created.length) {
+        const inserts = created.map((r: any) => ({
+          guild_id: guildId,
+          entreprise_key: entreprise,
+          statut: r.statut,
+          date_recu: r.date_recu || null,
+          date_rendu: r.date_rendu || null,
+          duree: r.duree || null,
+          groupe: r.groupe,
+          employe: r.employe,
+          donneur_id: r.donneur_id,
+          recep_id: r.recep_id,
+          somme: r.somme,
+        }));
+        const { error } = await supabase.from('blanchiment_rows').insert(inserts);
+        if (error) throw error;
+      }
+
+      const { data } = await supabase
+        .from('blanchiment_rows')
+        .select('*')
+        .eq('guild_id', guildId)
+        .eq('entreprise_key', entreprise)
+        .order('created_at', { ascending: false });
+      setRows((data || []) as any[]);
+      toast({ title: 'Sauvegardé', description: 'Lignes synchronisées avec la base.' });
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder.', variant: 'destructive' });
+    }
+  };
+
+  const removeRow = async (id: any) => {
+    if (isStaffReadOnly) return;
+    setRows(prev => prev.filter(r => r.id !== id));
+    if (typeof id === 'string') {
+      try { await supabase.from('blanchiment_rows').delete().eq('id', id); } catch {}
+    }
+  };
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -197,7 +260,7 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
         <h2 className="text-2xl font-bold">Blanchiment</h2>
         <div className="flex items-center gap-3">
           <Badge variant="outline">{entreprise}</Badge>
-          {isStaff && (
+          {!isStaffReadOnly && (
             state?.enabled ? (
               <Button onClick={() => handleToggle(false)} disabled={isSaving} variant="destructive">
                 {isSaving ? (
@@ -231,7 +294,10 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
               <div className="text-sm text-muted-foreground">
                 Pourcentages appliqués: Entreprise {percEntrepriseEff}% • Groupe {percGroupeEff}%
               </div>
-              <Button size="sm" variant="outline" onClick={addRow}>Ajouter une ligne</Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={addRow} disabled={isStaffReadOnly}>Ajouter une ligne</Button>
+                <Button size="sm" className="btn-discord" onClick={saveRows} disabled={isStaffReadOnly}>Sauvegarder</Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -254,19 +320,19 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
                 <tbody>
                   {rows.map((r, idx) => (
                     <tr key={r.id} className="border-b">
-                      <td className="p-2"><Input value={r.statut} onChange={(e)=> updateRow(idx,'statut', e.target.value)} /></td>
-                      <td className="p-2"><Input type="date" value={r.date_recu} onChange={(e)=> updateRow(idx,'date_recu', e.target.value)} /></td>
-                      <td className="p-2"><Input type="date" value={r.date_rendu} onChange={(e)=> updateRow(idx,'date_rendu', e.target.value)} /></td>
-                      <td className="p-2"><Input type="number" value={r.duree} onChange={(e)=> updateRow(idx,'duree', Number(e.target.value)||0)} className="w-24" /></td>
-                      <td className="p-2"><Input value={r.groupe} onChange={(e)=> updateRow(idx,'groupe', e.target.value)} /></td>
-                      <td className="p-2"><Input value={r.employe} onChange={(e)=> updateRow(idx,'employe', e.target.value)} /></td>
-                      <td className="p-2"><Input value={r.donneur_id} onChange={(e)=> updateRow(idx,'donneur_id', e.target.value)} /></td>
-                      <td className="p-2"><Input value={r.recep_id} onChange={(e)=> updateRow(idx,'recep_id', e.target.value)} /></td>
-                      <td className="p-2"><Input type="number" value={r.somme} onChange={(e)=> updateRow(idx,'somme', Number(e.target.value)||0)} /></td>
+                      <td className="p-2"><Input value={r.statut} onChange={(e)=> updateRow(idx,'statut', e.target.value)} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input type="date" value={r.date_recu} onChange={(e)=> updateRow(idx,'date_recu', e.target.value)} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input type="date" value={r.date_rendu} onChange={(e)=> updateRow(idx,'date_rendu', e.target.value)} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input type="number" value={r.duree} onChange={(e)=> updateRow(idx,'duree', Number(e.target.value)||0)} className="w-24" disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input value={r.groupe} onChange={(e)=> updateRow(idx,'groupe', e.target.value)} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input value={r.employe} onChange={(e)=> updateRow(idx,'employe', e.target.value)} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input value={r.donneur_id} onChange={(e)=> updateRow(idx,'donneur_id', e.target.value)} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input value={r.recep_id} onChange={(e)=> updateRow(idx,'recep_id', e.target.value)} disabled={isStaffReadOnly} /></td>
+                      <td className="p-2"><Input type="number" value={r.somme} onChange={(e)=> updateRow(idx,'somme', Number(e.target.value)||0)} disabled={isStaffReadOnly} /></td>
                       <td className="p-2">{percEntrepriseEff}%</td>
                       <td className="p-2">{percGroupeEff}%</td>
                       <td className="p-2">
-                        <Button size="sm" variant="destructive" onClick={()=> removeRow(r.id)}>Supprimer</Button>
+                        <Button size="sm" variant="destructive" onClick={()=> removeRow(r.id)} disabled={isStaffReadOnly}>Supprimer</Button>
                       </td>
                     </tr>
                   ))}

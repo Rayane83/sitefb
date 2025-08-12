@@ -13,7 +13,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [isHuman, setIsHuman] = useState(false);
 
   return (
-    <div className="min-h-screen bg-animated-blue bg-hero-grid flex items-center justify-center p-4">
+    <div className="min-h-screen bg-hero-pro flex items-center justify-center p-4">
       <div className="w-full max-w-4xl mx-auto">
         {/* Hero Section */}
         <div className="text-center mb-10 animate-fade-in">
@@ -33,19 +33,19 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
           {/* Benefits */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto mt-6">
-            <div className="stat-card py-3 animate-[float-up_6s_ease-in-out_infinite]">
+            <div className="stat-card py-3">
               <div className="flex items-center justify-center gap-2 text-sm">
                 <Shield className="w-4 h-4 text-primary" />
                 <span>Connexion OAuth sécurisée</span>
               </div>
             </div>
-            <div className="stat-card py-3 animate-[float-up_7s_ease-in-out_infinite]">
+            <div className="stat-card py-3">
               <div className="flex items-center justify-center gap-2 text-sm">
                 <BadgeCheck className="w-4 h-4 text-primary" />
                 <span>Accès rôles & permissions</span>
               </div>
             </div>
-            <div className="stat-card py-3 animate-[float-up_8s_ease-in-out_infinite]">
+            <div className="stat-card py-3">
               <div className="flex items-center justify-center gap-2 text-sm">
                 <Clock className="w-4 h-4 text-primary" />
                 <span>Disponible 24/7</span>

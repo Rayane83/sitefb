@@ -45,6 +45,8 @@ import {
 
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+
+const Index = () => {
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);

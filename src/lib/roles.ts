@@ -1,10 +1,29 @@
 import type { Role, UserGuildRole } from './types';
-
+import { supabase } from "@/integrations/supabase/client";
 // Récupération des rôles d'un utilisateur pour une guilde
 // En production, ceci doit venir de Discord via un backend sécurisé.
-// Pour l’instant, on ne simule plus de rôles côté frontend.
-export function getUserGuildRoles(guildId: string): Promise<string[]> {
-  return Promise.resolve([]);
+export async function getUserGuildRoles(guildId: string): Promise<string[]> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+    const providerId = (user?.user_metadata as any)?.provider_id || (user?.user_metadata as any)?.sub;
+    if (!providerId) return [];
+
+    const { data, error } = await supabase.functions.invoke('discord-user-roles', {
+      body: { guild_id: guildId, user_id: String(providerId) },
+    });
+
+    if (error) {
+      console.warn('discord-user-roles error', error);
+      return [];
+    }
+
+    const rolesByName: string[] = (data as any)?.roles_by_name || [];
+    return rolesByName;
+  } catch (e) {
+    console.warn('getUserGuildRoles failed', e);
+    return [];
+  }
 }
 
 

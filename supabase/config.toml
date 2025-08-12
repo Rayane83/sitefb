@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.discord-sync]
 verify_jwt = false
+
+[functions.discord-user-roles]
+verify_jwt = false

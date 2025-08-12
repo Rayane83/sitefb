@@ -320,27 +320,34 @@ const saveAll = async () => {
       const row = taxBrackets[i];
       const ex = existingTB?.[i];
       if (row && ex) {
-        updates.push(
-          supabase.from('tax_brackets').update({
-            min: row.min, max: row.max, taux: row.taux,
-            sal_min_emp: row.sal_min_emp, sal_max_emp: row.sal_max_emp,
-            sal_min_pat: row.sal_min_pat, sal_max_pat: row.sal_max_pat,
-            pr_min_emp: row.pr_min_emp, pr_max_emp: row.pr_max_emp,
-            pr_min_pat: row.pr_min_pat, pr_max_pat: row.pr_max_pat,
-          }).eq('id', ex.id)
-        );
+        updates.push((async () => {
+          const { error } = await supabase
+            .from('tax_brackets')
+            .update({
+              min: row.min, max: row.max, taux: row.taux,
+              sal_min_emp: row.sal_min_emp, sal_max_emp: row.sal_max_emp,
+              sal_min_pat: row.sal_min_pat, sal_max_pat: row.sal_max_pat,
+              pr_min_emp: row.pr_min_emp, pr_max_emp: row.pr_max_emp,
+              pr_min_pat: row.pr_min_pat, pr_max_pat: row.pr_max_pat,
+            })
+            .eq('id', ex.id);
+          if (error) throw error;
+        })());
       } else if (row && !ex) {
-        updates.push(
-          supabase.from('tax_brackets').insert({
-            guild_id: guildId,
-            entreprise_key: selectedEntreprise,
-            min: row.min, max: row.max, taux: row.taux,
-            sal_min_emp: row.sal_min_emp, sal_max_emp: row.sal_max_emp,
-            sal_min_pat: row.sal_min_pat, sal_max_pat: row.sal_max_pat,
-            pr_min_emp: row.pr_min_emp, pr_max_emp: row.pr_max_emp,
-            pr_min_pat: row.pr_min_pat, pr_max_pat: row.pr_max_pat,
-          })
-        );
+        updates.push((async () => {
+          const { error } = await supabase
+            .from('tax_brackets')
+            .insert({
+              guild_id: guildId,
+              entreprise_key: selectedEntreprise,
+              min: row.min, max: row.max, taux: row.taux,
+              sal_min_emp: row.sal_min_emp, sal_max_emp: row.sal_max_emp,
+              sal_min_pat: row.sal_min_pat, sal_max_pat: row.sal_max_pat,
+              pr_min_emp: row.pr_min_emp, pr_max_emp: row.pr_max_emp,
+              pr_min_pat: row.pr_min_pat, pr_max_pat: row.pr_max_pat,
+            });
+          if (error) throw error;
+        })());
       }
     }
 
@@ -349,13 +356,20 @@ const saveAll = async () => {
       const row = wealth[i];
       const ex = existingW?.[i];
       if (row && ex) {
-        updates.push(
-          supabase.from('wealth_brackets').update({ min: row.min, max: row.max, taux: row.taux }).eq('id', ex.id)
-        );
+        updates.push((async () => {
+          const { error } = await supabase
+            .from('wealth_brackets')
+            .update({ min: row.min, max: row.max, taux: row.taux })
+            .eq('id', ex.id);
+          if (error) throw error;
+        })());
       } else if (row && !ex) {
-        updates.push(
-          supabase.from('wealth_brackets').insert({ guild_id: guildId, entreprise_key: selectedEntreprise, min: row.min, max: row.max, taux: row.taux })
-        );
+        updates.push((async () => {
+          const { error } = await supabase
+            .from('wealth_brackets')
+            .insert({ guild_id: guildId, entreprise_key: selectedEntreprise, min: row.min, max: row.max, taux: row.taux });
+          if (error) throw error;
+        })());
       }
     }
 

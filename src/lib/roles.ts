@@ -42,8 +42,9 @@ export function getEntrepriseFromRoles(roles: string[]): string {
   // Gère: "Employé Bennys", "Emp Bennys", "Patron Bennys", "Co-Patron Bennys", "DOT Bennys",
   //       "Bennys Patron", "Bennys - Patron", "Patron • Bennys", etc.
   const sep = "[\\s\\-\\|•:>]+"; // séparateurs courants
-  const leadRe = new RegExp(`^(?:employ[eé]|emp|patron|co[-\\s]?patron|copatron|dot)${sep}(.+)$`, 'i');
-  const trailRe = new RegExp(`^(.+)${sep}(?:employ[eé]|emp|patron|co[-\\s]?patron|copatron|dot)$`, 'i');
+  // Important: faire correspondre 'co-patron' AVANT 'patron' pour éviter d'interpréter "Co Patron" comme entreprise="Co"
+  const leadRe = new RegExp(`^(?:employ[eé]|emp|co[-\\s]?patron|copatron|patron|dot)${sep}(.+)$`, 'i');
+  const trailRe = new RegExp(`^(.+)${sep}(?:employ[eé]|emp|co[-\\s]?patron|copatron|patron|dot)$`, 'i');
 
   const bannedTokens = [
     'staff', 'patron', 'co-patron', 'co patron', 'copatron', 'employe', 'employé', 'emp', 'dot',
@@ -57,10 +58,16 @@ export function getEntrepriseFromRoles(roles: string[]): string {
       .trim();
 
     const m1 = r.match(leadRe);
-    if (m1?.[1]) return m1[1].trim();
+    if (m1?.[1]) {
+      const ent = m1[1].trim();
+      if (ent.length >= 3 && !/^co$/i.test(ent)) return ent;
+    }
 
     const m2 = r.match(trailRe);
-    if (m2?.[1]) return m2[1].trim();
+    if (m2?.[1]) {
+      const ent = m2[1].trim();
+      if (ent.length >= 3 && !/^co$/i.test(ent)) return ent;
+    }
   }
 
   // Heuristique de secours: si un rôle ne contient aucun mot-clé connu, on le considère comme nom d'entreprise

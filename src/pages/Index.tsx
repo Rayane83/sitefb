@@ -245,7 +245,7 @@ const Index = () => {
                     <Badge className={getRoleColor(currentRole)}>
                       {getRoleDisplayName(currentRole)}
                     </Badge>
-                    {entreprise && (
+                    {entreprise && entreprise !== 'Aucune Entreprise' && (
                       <Badge variant="outline" className="text-xs">
                         {entreprise}
                       </Badge>

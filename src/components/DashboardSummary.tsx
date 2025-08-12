@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { Role } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface DashboardSummaryProps {
   guildId: string;
@@ -35,6 +36,8 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
   }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enterpriseOptions, setEnterpriseOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedEntKey, setSelectedEntKey] = useState<string>('all');
 
   useEffect(() => {
     let alive = true;
@@ -51,10 +54,13 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
           .order('name', { ascending: true });
         if (eEnt) throw eEnt;
         const list = (ents || []).map((e:any)=> ({ id: e.key as string, name: e.name as string }));
+        setEnterpriseOptions(list);
 
         const role = (currentRole || 'employe').toLowerCase();
         const isStaffOrDot = role.includes('staff') || role.includes('dot');
-        const targets = isStaffOrDot ? list.map(e=>e.id) : (entreprise ? [entreprise] : list[0] ? [list[0].id] : []);
+        const targets = isStaffOrDot
+          ? (selectedEntKey && selectedEntKey !== 'all' ? [selectedEntKey] : list.map((e) => e.id))
+          : (entreprise ? [entreprise] : list[0] ? [list[0].id] : []);
 
         const results: any[] = [];
         for (const entKey of targets) {
@@ -118,7 +124,7 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
     }
     load();
     return () => { alive = false; };
-  }, [guildId, currentRole, entreprise]);
+  }, [guildId, currentRole, entreprise, selectedEntKey]);
 
   const currentWeek = getISOWeek();
 
@@ -149,10 +155,25 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Dashboard</h2>
-        <Badge variant="outline" className="flex items-center space-x-1">
-          <Calendar className="w-3 h-3" />
-          <span>Semaine {currentWeek}</span>
-        </Badge>
+        <div className="flex items-center gap-3">
+          {(currentRole === 'staff' || currentRole === 'dot') && (
+            <Select value={selectedEntKey} onValueChange={setSelectedEntKey}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Toutes les entreprises" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les entreprises</SelectItem>
+                {enterpriseOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Badge variant="outline" className="flex items-center space-x-1">
+            <Calendar className="w-3 h-3" />
+            <span>Semaine {currentWeek}</span>
+          </Badge>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -191,6 +212,10 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Montant Impôts</span>
                   <span className="font-semibold text-warning">{formatCurrencyDollar(it.montant_impots)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Employés</span>
+                  <span className="font-semibold flex items-center"><Users className="w-4 h-4 mr-1 text-muted-foreground" />{it.employee_count ?? 0}</span>
                 </div>
               </CardContent>
             </Card>

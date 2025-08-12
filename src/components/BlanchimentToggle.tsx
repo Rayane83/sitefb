@@ -1,66 +1,301 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { BlanchimentState } from '@/lib/types';
 import { formatCurrencyDollar, parseNumber } from '@/lib/fmt';
 import { mockApi, handleApiError } from '@/lib/api';
-import { Shield, ShieldCheck, ShieldX, Calculator, AlertCircle, Save } from 'lucide-react';
+import { 
+  Shield, 
+  ShieldCheck, 
+  ShieldX, 
+  Calculator, 
+  AlertCircle,
+  Save,
+  Copy
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface Props { guildId: string; entreprise: string; currentRole: string }
+interface BlanchimentToggleProps {
+  guildId: string;
+  entreprise: string;
+  currentRole: string;
+}
 
-export function BlanchimentToggle({ guildId, entreprise, currentRole }: Props) {
+export function BlanchimentToggle({ guildId, entreprise, currentRole }: BlanchimentToggleProps) {
   const [state, setState] = useState<BlanchimentState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const isStaff = currentRole.toLowerCase().includes('staff');
+  const [globalPercs, setGlobalPercs] = useState<{ percEntreprise: number; percGroupe: number } | null>(null);
+  const [rows, setRows] = useState<any[]>([]);
+  
   const { toast } = useToast();
 
+  // Scoping avec entreprise
   const scope = `${guildId}:${entreprise}`;
 
   useEffect(() => {
     let alive = true;
-    async function load() {
-      setLoading(true); setError(null);
-      try { const s = await mockApi.getBlanchimentState(scope); if (alive) setState(s); }
-      catch (e) { if (alive) setError(handleApiError(e)); }
-      finally { if (alive) setLoading(false); }
+
+    async function fetchState() {
+      if (!guildId || !entreprise) return;
+      
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const stateData = await mockApi.getBlanchimentState(scope);
+        
+        if (!alive) return;
+        setState(stateData);
+      } catch (err) {
+        if (alive) {
+          setError(handleApiError(err));
+        }
+      } finally {
+        if (alive) {
+          setIsLoading(false);
+        }
+      }
     }
-    load();
-    return () => { alive = false };
+
+    fetchState();
+
+    return () => {
+      alive = false;
+    };
   }, [scope]);
 
-  const toggle = async () => {
-    if (!state) return;
-    setSaving(true);
+  const handleToggle = async (enabled: boolean) => {
+    setIsSaving(true);
     try {
-      const next = await mockApi.saveBlanchimentState(scope, !state.enabled);
-      setState(next);
-      toast({ title: 'Mise à jour', description: `Blanchiment ${next.enabled ? 'activé' : 'désactivé'}` });
-    } catch (e) {
-      toast({ title: 'Erreur', description: handleApiError(e), variant: 'destructive' });
-    } finally { setSaving(false); }
-  };
+      await mockApi.saveBlanchimentState(scope, enabled);
 
-  if (loading) return <div className="h-32 bg-muted animate-pulse rounded-md" />;
-  if (error) return <div className="p-4 rounded-md bg-destructive/10 text-destructive flex items-center gap-2"><AlertCircle className="w-4 h-4" />{error}</div>;
-  if (!state) return null;
+      setState({ enabled });
+      
+      toast({
+        title: enabled ? "Blanchiment activé" : "Blanchiment désactivé",
+        description: `Le blanchiment a été ${enabled ? 'activé' : 'désactivé'} pour ${entreprise}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Erreur",
+        description: handleApiError(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  // Charger pourcentages globaux et lignes sauvegardées
+  useEffect(() => {
+    (async () => {
+      try {
+        const gl = await mockApi.getBlanchimentGlobal(guildId);
+        setGlobalPercs(gl);
+      } catch {}
+      try {
+        const raw = localStorage.getItem(`blanchiment:rows:${scope}`);
+        if (raw) setRows(JSON.parse(raw));
+      } catch {}
+    })();
+  }, [guildId, scope]);
+
+  useEffect(() => {
+    try { localStorage.setItem(`blanchiment:rows:${scope}`, JSON.stringify(rows)); } catch {}
+  }, [rows, scope]);
+
+  const percEntrepriseEff = (state?.useGlobal ? globalPercs?.percEntreprise : state?.percEntreprise) ?? 0;
+  const percGroupeEff = (state?.useGlobal ? globalPercs?.percGroupe : state?.percGroupe) ?? 0;
+
+  const addRow = () => setRows(prev => [...prev, { id: Date.now(), statut: 'Statut', date_recu: '', date_rendu: '', duree: 0, groupe: '', employe: '', donneur_id: '', recep_id: '', somme: 0 }]);
+  const updateRow = (idx: number, field: string, value: any) => {
+    setRows(prev => prev.map((r,i) => {
+      if (i !== idx) return r;
+      const next = { ...r, [field]: value } as any;
+      if (field === 'date_recu' || field === 'date_rendu') {
+        const d1 = new Date(next.date_recu);
+        const d2 = new Date(next.date_rendu);
+        if (!isNaN(d1 as any) && !isNaN(d2 as any)) {
+          const ms = d2.getTime() - d1.getTime();
+          next.duree = Math.max(0, Math.round(ms / (1000*60*60*24)));
+        }
+      }
+      return next;
+    }));
+  };
+  const removeRow = (id: number) => setRows(prev => prev.filter(r => r.id !== id));
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Blanchiment</h2>
+          <div className="loading-dots">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        <Card className="stat-card">
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-muted rounded w-1/4"></div>
+              <div className="h-20 bg-muted rounded"></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold">Blanchiment</h2>
+        <Card className="stat-card">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3 text-destructive">
+              <AlertCircle className="w-5 h-5" />
+              <div>
+                <p className="font-medium">Erreur de chargement</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="text-base">Blanchiment</CardTitle>
-        <Badge variant={state.enabled ? 'secondary' : 'outline'}>{state.enabled ? 'Activé' : 'Désactivé'}</Badge>
-      </CardHeader>
-      <CardContent className="flex items-center gap-3">
-        <Button onClick={toggle} disabled={saving}>
-          {state.enabled ? <ShieldCheck className="w-4 h-4 mr-2" /> : <ShieldX className="w-4 h-4 mr-2" />} 
-          {state.enabled ? 'Désactiver' : 'Activer'}
-        </Button>
-        <div className="text-sm text-muted-foreground">Paramétrage simulé pour démonstration.</div>
-      </CardContent>
-    </Card>
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Blanchiment</h2>
+        <Badge variant="outline">{entreprise}</Badge>
+      </div>
+
+      {/* Toggle de blanchiment */}
+      <Card className="stat-card">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center space-x-3">
+            <div className={`p-2 rounded-md ${state?.enabled ? 'bg-success/10' : 'bg-destructive/10'}`}>
+              {state?.enabled ? (
+                <ShieldCheck className="w-5 h-5 text-success" />
+              ) : (
+                <ShieldX className="w-5 h-5 text-destructive" />
+              )}
+            </div>
+            <div>
+              <CardTitle className="text-lg">État du Blanchiment</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Scope: {scope}
+              </p>
+            </div>
+          </div>
+          <Badge 
+            variant={state?.enabled ? "default" : "destructive"}
+            className={state?.enabled ? "badge-success" : "badge-destructive"}
+          >
+            {state?.enabled ? "Activé" : "Désactivé"}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-3">
+            {isStaff ? (
+              state?.enabled ? (
+                <Button onClick={() => handleToggle(false)} disabled={isSaving} variant="destructive">
+                  {isSaving ? (
+                    <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
+                  ) : (
+                    <ShieldX className="w-4 h-4 mr-2" />
+                  )}
+                  Désactiver
+                </Button>
+              ) : (
+                <Button onClick={() => handleToggle(true)} disabled={isSaving} className="btn-discord">
+                  {isSaving ? (
+                    <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
+                  ) : (
+                    <ShieldCheck className="w-4 h-4 mr-2" />
+                  )}
+                  Activer
+                </Button>
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground">Activation gérée par le Staff.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tableau de suivi (accessible uniquement si activé par le Staff) */}
+      {state?.enabled ? (
+        <Card className="stat-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Suivi</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Pourcentages appliqués: Entreprise {percEntrepriseEff}% • Groupe {percGroupeEff}%
+              </div>
+              <Button size="sm" variant="outline" onClick={addRow}>Ajouter une ligne</Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="p-2 text-left">État</th>
+                    <th className="p-2 text-left">Date reçu</th>
+                    <th className="p-2 text-left">Date rendu</th>
+                    <th className="p-2 text-left">Durée (j)</th>
+                    <th className="p-2 text-left">Nom du groupe</th>
+                    <th className="p-2 text-left">Employé</th>
+                    <th className="p-2 text-left">Joueur qui donne (ID)</th>
+                    <th className="p-2 text-left">Joueur qui récupère (ID)</th>
+                    <th className="p-2 text-left">Somme à blanchir</th>
+                    <th className="p-2 text-left">Entreprise %</th>
+                    <th className="p-2 text-left">Groupe %</th>
+                    <th className="p-2 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, idx) => (
+                    <tr key={r.id} className="border-b">
+                      <td className="p-2"><Input value={r.statut} onChange={(e)=> updateRow(idx,'statut', e.target.value)} /></td>
+                      <td className="p-2"><Input type="date" value={r.date_recu} onChange={(e)=> updateRow(idx,'date_recu', e.target.value)} /></td>
+                      <td className="p-2"><Input type="date" value={r.date_rendu} onChange={(e)=> updateRow(idx,'date_rendu', e.target.value)} /></td>
+                      <td className="p-2"><Input type="number" value={r.duree} onChange={(e)=> updateRow(idx,'duree', Number(e.target.value)||0)} className="w-24" /></td>
+                      <td className="p-2"><Input value={r.groupe} onChange={(e)=> updateRow(idx,'groupe', e.target.value)} /></td>
+                      <td className="p-2"><Input value={r.employe} onChange={(e)=> updateRow(idx,'employe', e.target.value)} /></td>
+                      <td className="p-2"><Input value={r.donneur_id} onChange={(e)=> updateRow(idx,'donneur_id', e.target.value)} /></td>
+                      <td className="p-2"><Input value={r.recep_id} onChange={(e)=> updateRow(idx,'recep_id', e.target.value)} /></td>
+                      <td className="p-2"><Input type="number" value={r.somme} onChange={(e)=> updateRow(idx,'somme', Number(e.target.value)||0)} /></td>
+                      <td className="p-2">{percEntrepriseEff}%</td>
+                      <td className="p-2">{percGroupeEff}%</td>
+                      <td className="p-2">
+                        <Button size="sm" variant="destructive" onClick={()=> removeRow(r.id)}>Supprimer</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="stat-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Blanchiment désactivé</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Cette section est accessible uniquement si le Staff active le blanchiment pour l’entreprise.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

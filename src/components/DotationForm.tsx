@@ -1,117 +1,620 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DotationData, DotationRow, PalierConfig } from '@/lib/types';
 import { formatCurrencyDollar, parseNumber, calculateFromPaliers, generateId } from '@/lib/fmt';
 import { mockApi, handleApiError } from '@/lib/api';
-import { Plus, Save, Trash2, Calculator, AlertCircle, Check, Archive as ArchiveIcon } from 'lucide-react';
+import { 
+  Plus, 
+  Save, 
+  Trash2, 
+  Calculator,
+  AlertCircle,
+  Check,
+  Archive
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface DotationFormProps { guildId: string; entreprise: string; currentRole: string }
+interface DotationFormProps {
+  guildId: string;
+  entreprise: string;
+  currentRole: string;
+}
 
-export function DotationForm({ guildId, entreprise }: DotationFormProps) {
-  const [data, setData] = useState<DotationData | null>(null);
+export function DotationForm({ guildId, entreprise, currentRole }: DotationFormProps) {
+  const [dotationData, setDotationData] = useState<DotationData | null>(null);
   const [paliers, setPaliers] = useState<PalierConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Tableaux simples: Dépense déductible et Tableau des retraits
+  type SimpleEntry = { id: string; date: string; label: string; amount: number };
+  const [expenses, setExpenses] = useState<SimpleEntry[]>([]);
+  const [withdrawals, setWithdrawals] = useState<SimpleEntry[]>([]);
+
   useEffect(() => {
     let alive = true;
-    async function load() {
+
+    async function fetchData() {
       if (!guildId) return;
-      setLoading(true); setError(null);
+      
+      setIsLoading(true);
+      setError(null);
+
       try {
-        const res = await mockApi.getDotation(guildId, entreprise);
+        // Fetch paliers et dotation en parallèle
+        const [paliersData, dotationResult] = await Promise.all([
+          mockApi.getStaffConfig(guildId),
+          mockApi.getDotation(guildId, entreprise)
+        ]);
+
         if (!alive) return;
-        setData(res);
-        const staffCfg = await mockApi.getStaffConfig(guildId);
-        if (alive) setPaliers(staffCfg.paliers);
-      } catch (e) { if (alive) setError(handleApiError(e)); }
-      finally { if (alive) setLoading(false); }
+
+        {
+          const raw = localStorage.getItem(`company-config:${guildId}:_`);
+          let paliersToUse = paliersData.paliers;
+          try {
+            if (raw) {
+              const data = JSON.parse(raw);
+              if (Array.isArray(data.salaryPrimesPaliers)) {
+                paliersToUse = data.salaryPrimesPaliers;
+              }
+            }
+          } catch {}
+          setPaliers(paliersToUse);
+        }
+        setDotationData(dotationResult);
+      } catch (err) {
+        if (alive) {
+          setError(handleApiError(err));
+        }
+      } finally {
+        if (alive) {
+          setIsLoading(false);
+        }
+      }
     }
-    load();
-    return () => { alive = false };
+
+    fetchData();
+
+    return () => {
+      alive = false;
+    };
   }, [guildId, entreprise]);
 
-  const addRow = () => setData((d) => d ? { ...d, rows: [...d.rows, { id: generateId(), name: '', run: 0, facture: 0, vente: 0, ca_total: 0, salaire: 0, prime: 0 }] } : d);
-  const removeRow = (id: string) => setData((d) => d ? { ...d, rows: d.rows.filter(r => r.id !== id) } : d);
+  const updateRow = (id: string, field: keyof DotationRow, value: any) => {
+    if (!dotationData) return;
 
-  const recalc = () => setData((d) => {
-    if (!d) return d;
-    const rows = d.rows.map(r => {
-      const ca_total = r.run + r.facture + r.vente;
-      const prime = calculateFromPaliers(ca_total, paliers);
-      const salaire = Math.round(ca_total * 0.06);
-      return { ...r, ca_total, prime, salaire } as DotationRow;
+    const updatedRows = dotationData.rows.map(row => {
+      if (row.id === id) {
+        const newRow: DotationRow = { ...row, [field]: value } as DotationRow;
+        // Recalcul automatique quand des champs chiffres changent
+        if (['run', 'facture', 'vente'].includes(field as string)) {
+          newRow.run = Number(newRow.run) || 0;
+          newRow.facture = Number(newRow.facture) || 0;
+          newRow.vente = Number(newRow.vente) || 0;
+          newRow.ca_total = newRow.run + newRow.facture + newRow.vente;
+
+          const isPatron = currentRole.toLowerCase().includes('patron');
+          const { salaire, prime } = calculateFromPaliers(newRow.ca_total, paliers, isPatron);
+          newRow.salaire = salaire;
+          newRow.prime = prime;
+        }
+        return newRow;
+      }
+      return row;
     });
-    return { ...d, rows };
-  });
 
-  const save = async () => {
-    if (!data) return;
-    try {
-      setSaving(true);
-      await mockApi.saveDotation({ guildId, entreprise, data });
-      toast({ title: 'Dotation enregistrée', description: 'Les données ont été sauvegardées.' });
-    } catch (e) {
-      toast({ title: 'Erreur', description: handleApiError(e), variant: 'destructive' });
-    } finally { setSaving(false); }
+    setDotationData({ ...dotationData, rows: updatedRows });
   };
 
-  if (loading) return <div className="h-48 bg-muted animate-pulse rounded-md" />;
-  if (error) return <div className="p-4 rounded-md bg-destructive/10 text-destructive flex items-center gap-2"><AlertCircle className="w-4 h-4" />{error}</div>;
-  if (!data) return null;
+  const addEmployee = () => {
+    if (!dotationData) return;
+
+    const newEmployee: DotationRow = {
+      id: generateId(),
+      name: `Employé ${dotationData.rows.length + 1}`,
+      run: 0,
+      facture: 0,
+      vente: 0,
+      ca_total: 0,
+      salaire: 0,
+      prime: 0,
+    };
+
+    setDotationData({
+      ...dotationData,
+      rows: [...dotationData.rows, newEmployee]
+    });
+  };
+
+  const removeEmployee = (id: string) => {
+    if (!dotationData) return;
+
+    setDotationData({
+      ...dotationData,
+      rows: dotationData.rows.filter(row => row.id !== id)
+    });
+  };
+
+  const handleSave = async () => {
+    if (!dotationData) return;
+
+    setIsSaving(true);
+    try {
+      const totalExpenses = expenses.reduce((sum, r) => sum + r.amount, 0);
+      const totalWithdrawals = withdrawals.reduce((sum, r) => sum + r.amount, 0);
+
+      await mockApi.saveDotation({
+        guildId,
+        role: currentRole,
+        entreprise,
+        soldeActuel: dotationData.soldeActuel,
+        rows: dotationData.rows,
+        expenses: totalExpenses,
+        withdrawals: totalWithdrawals,
+        commissions: dotationData.commissions,
+        interInvoices: dotationData.interInvoices,
+      });
+
+      toast({
+        title: "Sauvegarde réussie",
+        description: "Les dotations ont été enregistrées avec succès",
+      });
+    } catch (err) {
+      toast({
+        title: "Erreur de sauvegarde",
+        description: handleApiError(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+// Export supprimés (impôt/blanchiment) selon la nouvelle demande
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Dotations</h2>
+          <div className="loading-dots">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        <Card className="stat-card">
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-muted rounded w-1/4"></div>
+              <div className="h-32 bg-muted rounded"></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold">Dotations</h2>
+        <Card className="stat-card">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3 text-destructive">
+              <AlertCircle className="w-5 h-5" />
+              <div>
+                <p className="font-medium">Erreur de chargement</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!dotationData) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold">Dotations</h2>
+        <Card className="stat-card">
+          <CardContent className="p-6 text-center text-muted-foreground">
+            <Calculator className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>Aucune donnée de dotation disponible</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const totalCA = dotationData.rows.reduce((sum, row) => sum + row.ca_total, 0);
+  const totalSalaires = dotationData.rows.reduce((sum, row) => sum + row.salaire, 0);
+  const totalPrimes = dotationData.rows.reduce((sum, row) => sum + row.prime, 0);
+  const totalExpenses = expenses.reduce((sum, r) => sum + r.amount, 0);
+  const totalWithdrawals = withdrawals.reduce((sum, r) => sum + r.amount, 0);
+
+  // Max calculés automatiquement depuis les paliers (fenêtre d’info)
+  const maxSalaireEmp = Math.max(0, ...paliers.map((p) => Number(p.sal_max_emp) || 0));
+  const maxPrimeEmp = Math.max(0, ...paliers.map((p) => Number(p.pr_max_emp) || 0));
+  const maxSalairePat = Math.max(0, ...paliers.map((p) => Number(p.sal_max_pat) || 0));
+  const maxPrimePat = Math.max(0, ...paliers.map((p) => Number(p.pr_max_pat) || 0));
+
+  // Envoyer aux archives
+  const handleSendToArchive = async () => {
+    if (!dotationData) return;
+    try {
+      const entry = {
+        id: generateId(),
+        date: new Date().toISOString(),
+        type: 'Dotation',
+        entreprise,
+        statut: 'En attente',
+        payload: {
+          rows: dotationData.rows,
+          soldeActuel: dotationData.soldeActuel,
+          totals: { totalCA, totalSalaires, totalPrimes, totalExpenses, totalWithdrawals },
+          limits: { maxSalaireEmp, maxPrimeEmp, maxSalairePat, maxPrimePat },
+          paliers,
+          employeesCount: dotationData.rows.length,
+        }
+      };
+      await mockApi.addArchiveEntry(guildId, entry);
+      toast({ title: 'Envoyé aux archives', description: 'Le rapport a été archivé.' });
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Impossible d’archiver.', variant: 'destructive' });
+    }
+  };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Tableau de dotation</h3>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={recalc}><Calculator className="w-4 h-4 mr-2" />Calculer</Button>
-          <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-2" />Sauvegarder</Button>
+        <h2 className="text-2xl font-bold">Dotations</h2>
+        <div className="flex items-center space-x-2">
+          <Badge variant="outline">{entreprise}</Badge>
+          <Badge variant="secondary">{dotationData.rows.length} employé(s)</Badge>
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Employés</CardTitle></CardHeader>
+      {/* Solde actuel */}
+      <Card className="stat-card">
+        <CardHeader>
+          <CardTitle className="text-lg">Solde Actuel</CardTitle>
+        </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-12 gap-2 text-sm font-medium text-muted-foreground mb-2">
-            <div className="col-span-3">Nom</div>
-            <div className="col-span-1">RUN</div>
-            <div className="col-span-1">FACT</div>
-            <div className="col-span-1">VENTE</div>
-            <div className="col-span-2">CA Total</div>
-            <div className="col-span-1">Salaire</div>
-            <div className="col-span-1">Prime</div>
-            <div className="col-span-2 text-right">
-              <Button size="sm" variant="outline" onClick={addRow}><Plus className="w-4 h-4" /></Button>
-            </div>
+          <div className="flex items-center space-x-4">
+            <Label htmlFor="solde" className="text-sm font-medium">
+              Solde bancaire :
+            </Label>
+            <Input
+              id="solde"
+              type="text"
+              value={formatCurrencyDollar(dotationData.soldeActuel)}
+              onChange={(e) => {
+                const value = parseNumber(e.target.value);
+                setDotationData({ ...dotationData, soldeActuel: value });
+              }}
+              className="w-48"
+            />
           </div>
-          {data.rows.map((r) => (
-            <div key={r.id} className="grid grid-cols-12 gap-2 items-center mb-2">
-              <Input value={r.name} onChange={(e) => setData(d => d ? { ...d, rows: d.rows.map(x => x.id === r.id ? { ...x, name: e.target.value } : x) } : d)} className="col-span-3" />
-              <Input value={r.run} onChange={(e) => setData(d => d ? { ...d, rows: d.rows.map(x => x.id === r.id ? { ...x, run: parseNumber(e.target.value) } : x) } : d)} className="col-span-1" />
-              <Input value={r.facture} onChange={(e) => setData(d => d ? { ...d, rows: d.rows.map(x => x.id === r.id ? { ...x, facture: parseNumber(e.target.value) } : x) } : d)} className="col-span-1" />
-              <Input value={r.vente} onChange={(e) => setData(d => d ? { ...d, rows: d.rows.map(x => x.id === r.id ? { ...x, vente: parseNumber(e.target.value) } : x) } : d)} className="col-span-1" />
-              <div className="col-span-2 text-right text-sm"><Badge variant="secondary">{formatCurrencyDollar(r.ca_total)}</Badge></div>
-              <div className="col-span-1 text-right">{formatCurrencyDollar(r.salaire)}</div>
-              <div className="col-span-1 text-right">{formatCurrencyDollar(r.prime)}</div>
-              <div className="col-span-2 text-right">
-                <Button size="sm" variant="ghost" onClick={() => removeRow(r.id)}><Trash2 className="w-4 h-4" /></Button>
-              </div>
-            </div>
-          ))}
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline"><ArchiveIcon className="w-4 h-4 mr-2" />Envoyer à l'archive</Button>
-        <Button onClick={save} disabled={saving}><Check className="w-4 h-4 mr-2" />Valider</Button>
+      {/* Limites actuelles (calcul automatique) */}
+      <Card className="stat-card">
+        <CardHeader>
+          <CardTitle className="text-lg">Limites actuelles</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <div className="text-sm text-muted-foreground">Salaire maximum employé</div>
+              <div className="text-xl font-semibold">{formatCurrencyDollar(maxSalaireEmp)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Prime maximum employé</div>
+              <div className="text-xl font-semibold">{formatCurrencyDollar(maxPrimeEmp)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Salaire maximum patron</div>
+              <div className="text-xl font-semibold">{formatCurrencyDollar(maxSalairePat)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Prime maximum patron</div>
+              <div className="text-xl font-semibold">{formatCurrencyDollar(maxPrimePat)}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tableau des employés */}
+      <Card className="stat-card">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Employés</CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Astuce: collez depuis Excel (Nom, RUN, FACTURE, VENTE)</span>
+            <Button onClick={addEmployee} size="sm" className="btn-discord">
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter un employé
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 space-y-2">
+            <Label>Zone de collage (Nom, RUN, FACTURE, VENTE)</Label>
+            <Textarea
+              placeholder="Nom; RUN; FACTURE; VENTE"
+              onPaste={(e)=>{
+                if (!dotationData) return;
+                const text = e.clipboardData.getData('text/plain');
+                if (!text) return;
+                e.preventDefault(); e.stopPropagation();
+                const lines = text.split(/\r?\n/).filter(Boolean);
+                const parsed = lines.map((l) => l.split(/[\t,;]/));
+                let rows = [...dotationData.rows];
+                let idx = 0;
+                for (const cols of parsed) {
+                  const [name, runStr, factureStr, venteStr] = cols;
+                  const run = parseNumber(runStr || '0');
+                  const facture = parseNumber(factureStr || '0');
+                  const vente = parseNumber(venteStr || '0');
+                  const ca_total = run + facture + vente;
+                  const isPatron = currentRole.toLowerCase().includes('patron');
+                  const { salaire, prime } = calculateFromPaliers(ca_total, paliers, isPatron);
+                  if (idx < rows.length) {
+                    rows[idx] = { ...rows[idx], name: name || rows[idx].name, run, facture, vente, ca_total, salaire, prime };
+                  } else {
+                    rows.push({ id: generateId(), name: name || `Employé ${rows.length + 1}`, run, facture, vente, ca_total, salaire, prime });
+                  }
+                  idx++;
+                }
+                setDotationData({ ...dotationData, rows });
+                toast({ title: 'Collage importé', description: `${parsed.length} ligne(s) appliquée(s).` });
+              }}
+            />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-2">Nom</th>
+                  <th className="text-center p-2">RUN</th>
+                  <th className="text-center p-2">FACTURE</th>
+                  <th className="text-center p-2">VENTE</th>
+                  <th className="text-center p-2">CA Total</th>
+                  <th className="text-center p-2">Salaire</th>
+                  <th className="text-center p-2">Prime</th>
+                  <th className="text-center p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dotationData.rows.map((row) => (
+                  <tr key={row.id} className="border-b hover:bg-muted/50">
+                    <td className="p-2">
+                      <Input
+                        value={row.name}
+                        onChange={(e) => updateRow(row.id, 'name', e.target.value)}
+                        className="min-w-32"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={row.run}
+                        onChange={(e) => updateRow(row.id, 'run', parseNumber(e.target.value))}
+                        className="w-24 text-center"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={row.facture}
+                        onChange={(e) => updateRow(row.id, 'facture', parseNumber(e.target.value))}
+                        className="w-24 text-center"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={row.vente}
+                        onChange={(e) => updateRow(row.id, 'vente', parseNumber(e.target.value))}
+                        className="w-24 text-center"
+                      />
+                    </td>
+                    <td className="p-2 text-center font-semibold text-primary">
+                      {formatCurrencyDollar(row.ca_total)}
+                    </td>
+                    <td className="p-2 text-center font-semibold text-success">
+                      {formatCurrencyDollar(row.salaire)}
+                    </td>
+                    <td className="p-2 text-center font-semibold text-warning">
+                      {formatCurrencyDollar(row.prime)}
+                    </td>
+                    <td className="p-2 text-center">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => removeEmployee(row.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totaux */}
+          <div className="mt-4 pt-4 border-t space-y-2">
+            <div className="flex justify-between items-center font-semibold">
+              <span>Totaux :</span>
+              <div className="flex space-x-8">
+                <span className="text-primary">CA: {formatCurrencyDollar(totalCA)}</span>
+                <span className="text-success">Salaires: {formatCurrencyDollar(totalSalaires)}</span>
+                <span className="text-warning">Primes: {formatCurrencyDollar(totalPrimes)}</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dépense déductible + Tableau des retraits */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Dépense déductible */}
+        <Card className="stat-card">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Dépense déductible</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Collez: Date, Justificatif, Montant</span>
+              <Button size="sm" variant="outline" onClick={() => setExpenses((prev)=> [...prev, { id: generateId(), date: '', label: '', amount: 0 }])}>
+                <Plus className="w-4 h-4 mr-2" />Ajouter
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 space-y-2">
+              <Label>Zone de collage (Date, Justificatif, Montant)</Label>
+              <Textarea placeholder="JJ/MM/AAAA; Libellé; Montant" onPaste={(e)=>{
+                const text = e.clipboardData.getData('text/plain');
+                if(!text) return; e.preventDefault(); e.stopPropagation();
+                const lines = text.split(/\r?\n/).filter(Boolean);
+                const parsed = lines.map((l)=> l.split(/[\t,;]/));
+                const toAdd: SimpleEntry[] = [];
+                for(const cols of parsed){
+                  const [date, label, amountStr] = cols;
+                  const amount = parseNumber(amountStr || '0');
+                  toAdd.push({ id: generateId(), date: (date||'').trim(), label: (label||'').trim(), amount });
+                }
+                setExpenses((prev)=> [...prev, ...toAdd]);
+                toast({ title: 'Collage importé', description: `${toAdd.length} ligne(s) ajoutée(s).` });
+              }} />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Date</th>
+                    <th className="text-left p-2">Justificatif</th>
+                    <th className="text-center p-2">Montant</th>
+                    <th className="text-center p-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((row, idx)=> (
+                    <tr key={row.id} className="border-b hover:bg-muted/50">
+                      <td className="p-2"><Input value={row.date} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, date: e.target.value}:r))} /></td>
+                      <td className="p-2"><Input value={row.label} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, label: e.target.value}:r))} /></td>
+                      <td className="p-2"><Input type="number" className="w-28 text-center" value={row.amount} onChange={(e)=> setExpenses((prev)=> prev.map((r,i)=> i===idx?{...r, amount: parseNumber(e.target.value)}:r))} /></td>
+                      <td className="p-2 text-center">
+                        <Button size="sm" variant="destructive" onClick={()=> setExpenses((prev)=> prev.filter((_,i)=> i!==idx))}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 text-right font-semibold">
+              Total: {formatCurrencyDollar(totalExpenses)}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tableau des retraits */}
+        <Card className="stat-card">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Tableau des retraits</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Collez: Date, Justificatif, Montant</span>
+              <Button size="sm" variant="outline" onClick={() => setWithdrawals((prev)=> [...prev, { id: generateId(), date: '', label: '', amount: 0 }])}>
+                <Plus className="w-4 h-4 mr-2" />Ajouter
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 space-y-2">
+              <Label>Zone de collage (Date, Justificatif, Montant)</Label>
+              <Textarea placeholder="JJ/MM/AAAA; Libellé; Montant" onPaste={(e)=>{
+                const text = e.clipboardData.getData('text/plain');
+                if(!text) return; e.preventDefault(); e.stopPropagation();
+                const lines = text.split(/\r?\n/).filter(Boolean);
+                const parsed = lines.map((l)=> l.split(/[\t,;]/));
+                const toAdd: SimpleEntry[] = [];
+                for(const cols of parsed){
+                  const [date, label, amountStr] = cols;
+                  const amount = parseNumber(amountStr || '0');
+                  toAdd.push({ id: generateId(), date: (date||'').trim(), label: (label||'').trim(), amount });
+                }
+                setWithdrawals((prev)=> [...prev, ...toAdd]);
+                toast({ title: 'Collage importé', description: `${toAdd.length} ligne(s) ajoutée(s).` });
+              }} />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Date</th>
+                    <th className="text-left p-2">Justificatif</th>
+                    <th className="text-center p-2">Montant</th>
+                    <th className="text-center p-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {withdrawals.map((row, idx)=> (
+                    <tr key={row.id} className="border-b hover:bg-muted/50">
+                      <td className="p-2"><Input value={row.date} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, date: e.target.value}:r))} /></td>
+                      <td className="p-2"><Input value={row.label} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, label: e.target.value}:r))} /></td>
+                      <td className="p-2"><Input type="number" className="w-28 text-center" value={row.amount} onChange={(e)=> setWithdrawals((prev)=> prev.map((r,i)=> i===idx?{...r, amount: parseNumber(e.target.value)}:r))} /></td>
+                      <td className="p-2 text-center">
+                        <Button size="sm" variant="destructive" onClick={()=> setWithdrawals((prev)=> prev.filter((_,i)=> i!==idx))}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 text-right font-semibold">
+              Total: {formatCurrencyDollar(totalWithdrawals)}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-wrap gap-4">
+        <Button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="btn-discord"
+        >
+          {isSaving ? (
+            <div className="loading-dots mr-2">
+              <span></span><span></span><span></span>
+            </div>
+          ) : (
+            <Save className="w-4 h-4 mr-2" />
+          )}
+          Enregistrer
+        </Button>
+
+        <Button
+          onClick={handleSendToArchive}
+          variant="outline"
+        >
+          <Archive className="w-4 h-4 mr-2" />
+          Envoyer aux archives
+        </Button>
+
       </div>
     </div>
   );

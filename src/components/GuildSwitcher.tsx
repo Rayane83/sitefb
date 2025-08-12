@@ -1,8 +1,8 @@
+import { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Guild } from '@/lib/types';
-import { Server } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Server, ChevronDown } from 'lucide-react';
 
 interface GuildSwitcherProps {
   guilds: Guild[];
@@ -11,10 +11,19 @@ interface GuildSwitcherProps {
   isLoading?: boolean;
 }
 
-export function GuildSwitcher({ guilds, selectedGuildId, onGuildChange, isLoading = false }: GuildSwitcherProps) {
+export function GuildSwitcher({ 
+  guilds, 
+  selectedGuildId, 
+  onGuildChange, 
+  isLoading = false 
+}: GuildSwitcherProps) {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // État vide si pas de guildes
   if (!mounted || isLoading) {
     return (
       <div className="flex items-center space-x-2">
@@ -28,12 +37,14 @@ export function GuildSwitcher({ guilds, selectedGuildId, onGuildChange, isLoadin
     return (
       <div className="flex items-center space-x-2">
         <Server className="w-4 h-4 text-muted-foreground" />
-        <Badge variant="outline" className="text-muted-foreground">Aucune guilde disponible</Badge>
+        <Badge variant="outline" className="text-muted-foreground">
+          Aucune guilde disponible
+        </Badge>
       </div>
     );
   }
 
-  const selectedGuild = guilds.find((g) => g.id === selectedGuildId);
+  const selectedGuild = guilds.find(g => g.id === selectedGuildId);
 
   return (
     <div className="flex items-center space-x-2">
@@ -41,15 +52,47 @@ export function GuildSwitcher({ guilds, selectedGuildId, onGuildChange, isLoadin
       <Select value={selectedGuildId} onValueChange={onGuildChange}>
         <SelectTrigger className="w-48">
           <SelectValue placeholder="Sélectionner une guilde">
-            {selectedGuild && (<span className="inline-flex items-center gap-2"><span className="truncate">{selectedGuild.name}</span><Badge variant="secondary">{selectedGuild.id}</Badge></span>)}
+            {selectedGuild && (
+              <div className="flex items-center space-x-2">
+                {selectedGuild.icon && (
+                  <img 
+                    src={selectedGuild.icon} 
+                    alt="" 
+                    className="w-4 h-4 rounded-full"
+                  />
+                )}
+                <span className="truncate">{selectedGuild.name}</span>
+              </div>
+            )}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {guilds.map((g) => (
-            <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+          {guilds.map((guild) => (
+            <SelectItem key={guild.id} value={guild.id}>
+              <div className="flex items-center space-x-2">
+                {guild.icon ? (
+                  <img 
+                    src={guild.icon} 
+                    alt="" 
+                    className="w-4 h-4 rounded-full"
+                  />
+                ) : (
+                  <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Server className="w-2 h-2 text-primary" />
+                  </div>
+                )}
+                <span className="truncate">{guild.name}</span>
+              </div>
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
+      
+      {guilds.length > 0 && (
+        <Badge variant="secondary" className="text-xs">
+          {guilds.length} guilde{guilds.length > 1 ? 's' : ''}
+        </Badge>
+      )}
     </div>
   );
 }

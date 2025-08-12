@@ -195,65 +195,33 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Blanchiment</h2>
-        <Badge variant="outline">{entreprise}</Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline">{entreprise}</Badge>
+          {isStaff && (
+            state?.enabled ? (
+              <Button onClick={() => handleToggle(false)} disabled={isSaving} variant="destructive">
+                {isSaving ? (
+                  <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
+                ) : (
+                  <ShieldX className="w-4 h-4 mr-2" />
+                )}
+                Désactiver
+              </Button>
+            ) : (
+              <Button onClick={() => handleToggle(true)} disabled={isSaving} className="btn-discord">
+                {isSaving ? (
+                  <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
+                ) : (
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                )}
+                Activer
+              </Button>
+            )
+          )}
+        </div>
       </div>
 
-      {/* Toggle de blanchiment */}
-      <Card className="stat-card">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-md ${state?.enabled ? 'bg-success/10' : 'bg-destructive/10'}`}>
-              {state?.enabled ? (
-                <ShieldCheck className="w-5 h-5 text-success" />
-              ) : (
-                <ShieldX className="w-5 h-5 text-destructive" />
-              )}
-            </div>
-            <div>
-              <CardTitle className="text-lg">État du Blanchiment</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Scope: {scope}
-              </p>
-            </div>
-          </div>
-          <Badge 
-            variant={state?.enabled ? "default" : "destructive"}
-            className={state?.enabled ? "badge-success" : "badge-destructive"}
-          >
-            {state?.enabled ? "Activé" : "Désactivé"}
-          </Badge>
-        </CardHeader>
-        <CardContent>
-          <div className="flex space-x-3">
-            {isStaff ? (
-              state?.enabled ? (
-                <Button onClick={() => handleToggle(false)} disabled={isSaving} variant="destructive">
-                  {isSaving ? (
-                    <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
-                  ) : (
-                    <ShieldX className="w-4 h-4 mr-2" />
-                  )}
-                  Désactiver
-                </Button>
-              ) : (
-                <Button onClick={() => handleToggle(true)} disabled={isSaving} className="btn-discord">
-                  {isSaving ? (
-                    <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
-                  ) : (
-                    <ShieldCheck className="w-4 h-4 mr-2" />
-                  )}
-                  Activer
-                </Button>
-              )
-            ) : (
-              <p className="text-sm text-muted-foreground">Activation gérée par le Staff.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tableau de suivi (accessible uniquement si activé par le Staff) */}
-      {state?.enabled ? (
+      {state?.enabled && (
         <Card className="stat-card">
           <CardHeader>
             <CardTitle className="text-lg">Suivi</CardTitle>
@@ -305,15 +273,6 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="stat-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Blanchiment désactivé</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Cette section est accessible uniquement si le Staff active le blanchiment pour l’entreprise.</p>
           </CardContent>
         </Card>
       )}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DashboardSummary as IDashboardSummary } from '@/lib/types';
 import { formatCurrencyDollar, formatPercentage, getISOWeek } from '@/lib/fmt';
 import { handleApiError } from '@/lib/api';
@@ -36,8 +37,9 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
   }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [enterpriseOptions, setEnterpriseOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [enterpriseOptions, setEnterpriseOptions] = useState<Array<{ id: string; name: string; guildId?: string; employeeRoleId?: string }>>([]);
   const [selectedEntKey, setSelectedEntKey] = useState<string>('all');
+  const [refreshTick, setRefreshTick] = useState<number>(0);
 
   useEffect(() => {
     let alive = true;
@@ -49,11 +51,11 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
         // 1) Entreprises disponibles
         const { data: ents, error: eEnt } = await supabase
           .from('enterprises')
-          .select('key,name')
+          .select('key,name,enterprise_guild_id,employee_role_id')
           .eq('guild_id', guildId)
           .order('name', { ascending: true });
         if (eEnt) throw eEnt;
-        const list = (ents || []).map((e:any)=> ({ id: e.key as string, name: e.name as string }));
+        const list = (ents || []).map((e:any)=> ({ id: e.key as string, name: e.name as string, guildId: e.enterprise_guild_id as string | undefined, employeeRoleId: e.employee_role_id as string | undefined }));
         setEnterpriseOptions(list);
 
         const role = (currentRole || 'employe').toLowerCase();
@@ -103,6 +105,23 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
           }
           const montantImpots = Math.round(benefice * (tauxImposition / 100));
 
+          // Employés: live (staff/dot) sinon chiffre du dernier rapport
+          let employeeCount = report?.employees_count || 0;
+          if (isStaffOrDot) {
+            const entMeta = list.find(e=>e.id===entKey);
+            if (entMeta?.guildId && entMeta?.employeeRoleId) {
+              try {
+                const { data, error } = await supabase.functions.invoke('discord-role-counts', {
+                  body: { guildId: entMeta.guildId, roleIds: [entMeta.employeeRoleId] },
+                });
+                if (!error && (data as any)?.ok) {
+                  const counts = (data as any)?.counts || {};
+                  employeeCount = counts[entMeta.employeeRoleId] ?? employeeCount;
+                }
+              } catch {}
+            }
+          }
+
           results.push({
             entreprise: entKey,
             name: list.find(e=>e.id===entKey)?.name || entKey,
@@ -111,7 +130,7 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
             benefice,
             taux_imposition: tauxImposition,
             montant_impots: montantImpots,
-            employee_count: report?.employees_count || 0,
+            employee_count: employeeCount,
           });
         }
         if (!alive) return;
@@ -124,7 +143,13 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
     }
     load();
     return () => { alive = false; };
-  }, [guildId, currentRole, entreprise, selectedEntKey]);
+  }, [guildId, currentRole, entreprise, selectedEntKey, refreshTick]);
+
+  useEffect(() => {
+    if (!(currentRole === 'staff' || currentRole === 'dot')) return;
+    const id = setInterval(() => setRefreshTick((t) => t + 1), 60000);
+    return () => clearInterval(id);
+  }, [currentRole]);
 
   const currentWeek = getISOWeek();
 
@@ -157,17 +182,20 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
         <h2 className="text-2xl font-bold">Dashboard</h2>
         <div className="flex items-center gap-3">
           {(currentRole === 'staff' || currentRole === 'dot') && (
-            <Select value={selectedEntKey} onValueChange={setSelectedEntKey}>
-              <SelectTrigger className="w-[220px]">
-                <SelectValue placeholder="Toutes les entreprises" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les entreprises</SelectItem>
-                {enterpriseOptions.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select value={selectedEntKey} onValueChange={setSelectedEntKey}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Toutes les entreprises" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les entreprises</SelectItem>
+                  {enterpriseOptions.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={()=>setRefreshTick((t)=>t+1)}>Actualiser</Button>
+            </>
           )}
           <Badge variant="outline" className="flex items-center space-x-1">
             <Calendar className="w-3 h-3" />

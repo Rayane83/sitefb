@@ -247,14 +247,14 @@ export default function SuperadminPage() {
     }
   };
 
-  const syncEnterprisesToDB = async () => {
+  const syncEnterprisesToDB = async (silent: boolean = false) => {
     const entries = Object.entries(cfg.enterprises || {});
     if (!cfg.principalGuildId) {
-      toast({ title: 'Guild principal manquant', description: 'Renseignez le Guild ID du serveur principal.', variant: 'destructive' });
+      if (!silent) toast({ title: 'Guild principal manquant', description: 'Renseignez le Guild ID du serveur principal.', variant: 'destructive' });
       return;
     }
     if (!entries.length) {
-      toast({ title: 'Aucune entreprise à synchroniser' });
+      if (!silent) toast({ title: 'Aucune entreprise à synchroniser' });
       return;
     }
     setSyncing(true);
@@ -262,7 +262,6 @@ export default function SuperadminPage() {
       let synced = 0;
       for (const [name, ent] of entries) {
         const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-        // Existe déjà ?
         const { data: existing } = await supabase
           .from('enterprises')
           .select('id')
@@ -291,13 +290,22 @@ export default function SuperadminPage() {
         }
         synced++;
       }
-      toast({ title: 'Synchronisation effectuée', description: `${synced} entreprise(s) synchronisées.` });
+      if (!silent) toast({ title: 'Synchronisation effectuée', description: `${synced} entreprise(s) synchronisées.` });
     } catch (e: any) {
-      toast({ title: 'Erreur sync', description: String(e.message || e), variant: 'destructive' });
+      if (!silent) toast({ title: 'Erreur sync', description: String(e.message || e), variant: 'destructive' });
     } finally {
       setSyncing(false);
     }
   };
+
+  // Auto sync (debounce) à chaque modification de la config des entreprises
+  useEffect(() => {
+    const t = setTimeout(() => {
+      syncEnterprisesToDB(true);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [cfg.principalGuildId, cfg.enterprises]);
+
   return (
     <div className="container mx-auto px-4 py-8">
         <header className="mb-6 space-y-2">
@@ -344,7 +352,7 @@ export default function SuperadminPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Entreprises</CardTitle>
-            <Button size="sm" variant="outline" onClick={syncEnterprisesToDB} disabled={syncing}>{syncing ? 'Sync...' : 'Synchroniser avec la base'}</Button>
+            <Button size="sm" variant="outline" onClick={() => syncEnterprisesToDB(false)} disabled={syncing}>{syncing ? 'Sync...' : 'Synchroniser avec la base'}</Button>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Création d'une entreprise */}

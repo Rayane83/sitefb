@@ -344,6 +344,87 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     }
   };
 
+  // Fonction de test pour générer des archives d'exemple (Staff uniquement)
+  const generateTestArchives = async () => {
+    if (!isStaffRole) return;
+    
+    try {
+      const testData = [
+        {
+          guild_id: guildId,
+          entreprise_key: allEntreprises[0]?.key || 'test_entreprise',
+          type: 'dotation',
+          statut: 'En attente',
+          montant: 15000,
+          date: new Date().toISOString(),
+          payload: {
+            description: 'Archive de test - Dotation',
+            totals: {
+              total_ca: 45000,
+              total_salaire: 25000,
+              total_prime: 5000,
+              total_run: 15000,
+              total_facture: 10000,
+              total_vente: 35000
+            },
+            employees: [
+              { name: 'Employé Test 1', run: 5000, facture: 3000, vente: 12000, ca_total: 15000, salaire: 8000, prime: 1500 },
+              { name: 'Employé Test 2', run: 10000, facture: 7000, vente: 23000, ca_total: 30000, salaire: 17000, prime: 3500 }
+            ]
+          }
+        },
+        {
+          guild_id: guildId,
+          entreprise_key: allEntreprises[1]?.key || allEntreprises[0]?.key || 'test_entreprise',
+          type: 'facture',
+          statut: 'Validé',
+          montant: 2500,
+          date: new Date(Date.now() - 86400000).toISOString(), // Hier
+          payload: {
+            description: 'Archive de test - Facture client ABC',
+            file_path: 'test/facture_exemple.pdf',
+            client: 'Client Test',
+            numero_facture: 'FAC-2024-001'
+          }
+        },
+        {
+          guild_id: guildId,
+          entreprise_key: allEntreprises[2]?.key || allEntreprises[0]?.key || 'test_entreprise',
+          type: 'diplôme',
+          statut: 'En attente',
+          montant: null,
+          date: new Date(Date.now() - 172800000).toISOString(), // Il y a 2 jours
+          payload: {
+            description: 'Archive de test - Diplôme de formation sécurité',
+            file_path: 'test/diplome_exemple.jpg',
+            formation: 'Sécurité au travail',
+            employe: 'Employé Test'
+          }
+        }
+      ];
+
+      const { data, error } = await supabase
+        .from('archives')
+        .insert(testData)
+        .select('*');
+
+      if (error) throw error;
+
+      setRows(prev => [...(data || []), ...prev]);
+      toast({ 
+        title: 'Archives de test créées', 
+        description: `${data?.length || 0} archives d'exemple générées avec succès.` 
+      });
+    } catch (e) {
+      console.error('Erreur lors de la génération des archives de test:', e);
+      toast({ 
+        title: 'Erreur', 
+        description: 'Impossible de générer les archives de test.', 
+        variant: 'destructive' 
+      });
+    }
+  };
+
   // Import d'un template Excel (Staff)
   const onTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -454,6 +535,11 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
           <Button variant="outline" size="sm" onClick={exportToExcel} aria-label="Exporter Excel">
             <FileSpreadsheet className="w-4 h-4 mr-2" /> Exporter
           </Button>
+          {isStaffRole && (
+            <Button variant="outline" size="sm" onClick={generateTestArchives} aria-label="Générer des archives de test">
+              <Archive className="w-4 h-4 mr-2" /> Test Archives
+            </Button>
+          )}
         </div>
       </div>
 

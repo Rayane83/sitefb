@@ -107,15 +107,52 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
   }, [guildId, currentRole, entreprise]);
 
   // Obtenir les types et entreprises uniques pour les filtres
+  const [allEntreprises, setAllEntreprises] = useState<{key: string, name: string}[]>([]);
+  
+  // Charger toutes les entreprises disponibles
+  useEffect(() => {
+    const fetchEntreprises = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('enterprises')
+          .select('key, name')
+          .eq('guild_id', guildId);
+        
+        if (error) throw error;
+        setAllEntreprises(data || []);
+      } catch (err) {
+        console.error('Erreur lors du chargement des entreprises:', err);
+      }
+    };
+
+    if (guildId) {
+      fetchEntreprises();
+    }
+  }, [guildId]);
+
   const availableTypes = useMemo(() => {
-    const types = [...new Set(rows.map(row => row.type).filter(Boolean))];
-    return types.sort();
+    // Types standards + types trouvés dans les archives
+    const standardTypes = ['dotation', 'facture', 'diplôme'];
+    const archiveTypes = [...new Set(rows.map(row => row.type).filter(Boolean))];
+    const allTypes = [...new Set([...standardTypes, ...archiveTypes])];
+    return allTypes.sort();
   }, [rows]);
 
   const availableEntreprises = useMemo(() => {
-    const entreprises = [...new Set(rows.map(row => row.entreprise_key).filter(Boolean))];
-    return entreprises.sort();
-  }, [rows]);
+    // Combiner entreprises de la table enterprises + celles trouvées dans les archives
+    const enterpriseKeys = new Set([
+      ...allEntreprises.map(e => e.key),
+      ...rows.map(row => row.entreprise_key).filter(Boolean)
+    ]);
+    
+    return Array.from(enterpriseKeys).map(key => {
+      const enterprise = allEntreprises.find(e => e.key === key);
+      return {
+        key,
+        name: enterprise?.name || key
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows, allEntreprises]);
 
   // Filtrage côté client complet
   const filteredRows = useMemo(() => {
@@ -486,10 +523,10 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
                       </div>
                     </SelectItem>
                     {availableEntreprises.map((ent) => (
-                      <SelectItem key={ent} value={ent} className="hover:bg-muted">
+                      <SelectItem key={ent.key} value={ent.key} className="hover:bg-muted">
                         <div className="flex items-center gap-2">
                           <Building2 className="w-4 h-4" />
-                          {ent}
+                          {ent.name}
                         </div>
                       </SelectItem>
                     ))}
@@ -509,7 +546,7 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
                 <span className="ml-2">
                   (Filtres actifs: {typeFilter !== 'all' && `Type: ${typeFilter}`}
                   {typeFilter !== 'all' && entrepriseFilter !== 'all' && ', '}
-                  {entrepriseFilter !== 'all' && `Entreprise: ${entrepriseFilter}`})
+                  {entrepriseFilter !== 'all' && `Entreprise: ${availableEntreprises.find(e => e.key === entrepriseFilter)?.name || entrepriseFilter}`})
                 </span>
               )}
             </div>

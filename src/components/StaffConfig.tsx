@@ -37,6 +37,8 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const [blanchimentEnabled, setBlanchimentEnabled] = useState(false);
+  const [empCount, setEmpCount] = useState<number | null>(null);
+  const [counting, setCounting] = useState(false);
 
   const scope = useMemo(() => (selectedEntreprise ? `${guildId}:${selectedEntreprise}` : guildId), [guildId, selectedEntreprise]);
 
@@ -236,7 +238,27 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
       toast({ title: 'Collage richesse', description: `${imported.length} ligne(s) ajoutée(s).` });
     }
   };
-
+  
+  const countEmployees = async () => {
+    if (!entGuildId || !entEmployeeRoleId) {
+      toast({ title: 'Champs requis', description: "ID serveur (guild) et ID rôle employé sont requis.", variant: 'destructive' });
+      return;
+    }
+    try {
+      setCounting(true);
+      const { data, error } = await supabase.functions.invoke('discord-role-counts', {
+        body: { guild_id: entGuildId, role_id: entEmployeeRoleId },
+      });
+      if (error) throw error;
+      const count = (data as any)?.count ?? 0;
+      setEmpCount(count);
+      toast({ title: 'Comptage effectué', description: `Employés: ${count}` });
+    } catch (e) {
+      toast({ title: 'Erreur', description: handleApiError(e), variant: 'destructive' });
+    } finally {
+      setCounting(false);
+    }
+  };
   const toggleBlanchiment = async (checked: boolean) => {
     setBlanchimentEnabled(checked);
     try {
@@ -410,7 +432,7 @@ const saveAll = async () => {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <Factory className="w-5 h-5 text-primary" />
-          Configuration Staff
+          SuperStaff
         </h2>
         <div className="flex items-center gap-2">
           {selectedEntreprise && <Badge variant="secondary">{selectedEntreprise}</Badge>}
@@ -469,6 +491,10 @@ const saveAll = async () => {
               <Button onClick={saveEntreprise} className="btn-discord">
                 <Save className="w-4 h-4 mr-2" /> Enregistrer l'entreprise
               </Button>
+              <Button variant="outline" onClick={countEmployees} disabled={counting || !entGuildId || !entEmployeeRoleId}>
+                {counting ? 'Comptage...' : 'Compter employés'}
+              </Button>
+              {empCount !== null && <Badge variant="secondary">Employés: {empCount}</Badge>}
             </div>
           </div>
 

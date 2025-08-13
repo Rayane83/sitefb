@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
 import { handleApiError } from '@/lib/api';
@@ -26,7 +27,8 @@ import {
   FileImage,
   Building2,
   Receipt,
-  GraduationCap
+  GraduationCap,
+  Filter
 } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,6 +43,8 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [entrepriseFilter, setEntrepriseFilter] = useState<string>('all');
   const { toast } = useToast();
 
   const role = (currentRole || '').toLowerCase();
@@ -102,15 +106,45 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     };
   }, [guildId, currentRole, entreprise]);
 
-  // Filtrage côté client via JSON.stringify
+  // Obtenir les types et entreprises uniques pour les filtres
+  const availableTypes = useMemo(() => {
+    const types = [...new Set(rows.map(row => row.type).filter(Boolean))];
+    return types.sort();
+  }, [rows]);
+
+  const availableEntreprises = useMemo(() => {
+    const entreprises = [...new Set(rows.map(row => row.entreprise_key).filter(Boolean))];
+    return entreprises.sort();
+  }, [rows]);
+
+  // Filtrage côté client complet
   const filteredRows = useMemo(() => {
-    if (!searchQuery.trim()) return rows;
+    let filtered = rows;
     
-    const query = searchQuery.toLowerCase();
-    return rows.filter(row => 
-      JSON.stringify(row).toLowerCase().includes(query)
-    );
-  }, [rows, searchQuery]);
+    // Filtre par type (staff et dot uniquement)
+    if ((isStaffRole || isDotRole) && typeFilter !== 'all') {
+      filtered = filtered.filter(row => 
+        String(row.type || '').toLowerCase() === typeFilter.toLowerCase()
+      );
+    }
+    
+    // Filtre par entreprise (staff et dot uniquement)
+    if ((isStaffRole || isDotRole) && entrepriseFilter !== 'all') {
+      filtered = filtered.filter(row => 
+        String(row.entreprise_key || '') === entrepriseFilter
+      );
+    }
+    
+    // Filtre par recherche textuelle
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(row => 
+        JSON.stringify(row).toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [rows, searchQuery, typeFilter, entrepriseFilter, isStaffRole, isDotRole]);
 
   // Headers générés dynamiquement depuis la première ligne filtrée
   const headers = useMemo(() => {
@@ -386,15 +420,16 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
         </div>
       </div>
 
-      {/* Recherche */}
+      {/* Recherche et Filtres */}
       <Card className="stat-card">
         <CardHeader>
           <CardTitle className="text-lg flex items-center space-x-2">
             <Search className="w-5 h-5 text-primary" />
-            <span>Recherche</span>
+            <span>Recherche et Filtres</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Barre de recherche */}
           <div className="flex items-center space-x-2">
             <Search className="w-4 h-4 text-muted-foreground" />
             <Input
@@ -403,11 +438,94 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
               className="flex-1"
             />
           </div>
-          {searchQuery && (
-            <p className="text-sm text-muted-foreground mt-2">
-              {filteredRows.length} résultat(s) trouvé(s) pour "{searchQuery}"
-            </p>
+
+          {/* Filtres pour Staff et DOT */}
+          {(isStaffRole || isDotRole) && (
+            <div className="flex flex-wrap gap-4">
+              {/* Filtre par type */}
+              <div className="min-w-[200px]">
+                <label className="text-sm font-medium mb-2 block">Type d'archive</label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="bg-background border border-border">
+                    <SelectValue placeholder="Tous les types" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border border-border z-50">
+                    <SelectItem value="all" className="hover:bg-muted">
+                      <div className="flex items-center gap-2">
+                        <Filter className="w-4 h-4" />
+                        Tous les types
+                      </div>
+                    </SelectItem>
+                    {availableTypes.map((type) => (
+                      <SelectItem key={type} value={type} className="hover:bg-muted">
+                        <div className="flex items-center gap-2">
+                          {type === 'dotation' && <User className="w-4 h-4" />}
+                          {type === 'facture' && <Receipt className="w-4 h-4" />}
+                          {type === 'diplôme' && <GraduationCap className="w-4 h-4" />}
+                          {!['dotation', 'facture', 'diplôme'].includes(type) && <FileText className="w-4 h-4" />}
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtre par entreprise */}
+              <div className="min-w-[200px]">
+                <label className="text-sm font-medium mb-2 block">Entreprise</label>
+                <Select value={entrepriseFilter} onValueChange={setEntrepriseFilter}>
+                  <SelectTrigger className="bg-background border border-border">
+                    <SelectValue placeholder="Toutes les entreprises" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border border-border z-50">
+                    <SelectItem value="all" className="hover:bg-muted">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        Toutes les entreprises
+                      </div>
+                    </SelectItem>
+                    {availableEntreprises.map((ent) => (
+                      <SelectItem key={ent} value={ent} className="hover:bg-muted">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4" />
+                          {ent}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           )}
+
+          {/* Résultats */}
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div>
+              {searchQuery && (
+                <span>{filteredRows.length} résultat(s) trouvé(s) pour "{searchQuery}"</span>
+              )}
+              {(typeFilter !== 'all' || entrepriseFilter !== 'all') && (
+                <span className="ml-2">
+                  (Filtres actifs: {typeFilter !== 'all' && `Type: ${typeFilter}`}
+                  {typeFilter !== 'all' && entrepriseFilter !== 'all' && ', '}
+                  {entrepriseFilter !== 'all' && `Entreprise: ${entrepriseFilter}`})
+                </span>
+              )}
+            </div>
+            {(typeFilter !== 'all' || entrepriseFilter !== 'all') && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setTypeFilter('all');
+                  setEntrepriseFilter('all');
+                }}
+              >
+                Réinitialiser les filtres
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

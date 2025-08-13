@@ -329,6 +329,7 @@ export type Database = {
         Row: {
           created_at: string
           employee_role_id: string | null
+          enterprise_guild_id: string | null
           guild_id: string
           id: string
           key: string
@@ -339,6 +340,7 @@ export type Database = {
         Insert: {
           created_at?: string
           employee_role_id?: string | null
+          enterprise_guild_id?: string | null
           guild_id: string
           id?: string
           key: string
@@ -349,6 +351,7 @@ export type Database = {
         Update: {
           created_at?: string
           employee_role_id?: string | null
+          enterprise_guild_id?: string | null
           guild_id?: string
           id?: string
           key?: string

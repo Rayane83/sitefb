@@ -20,13 +20,17 @@ interface StaffConfigProps {
 }
 
 export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) {
-  const [entreprises, setEntreprises] = useState<{ id: string; name: string; roleId?: string; employeeRoleId?: string }[]>([]);
+  const [entreprises, setEntreprises] = useState<{ id: string; name: string; roleId?: string; employeeRoleId?: string; enterpriseGuildId?: string }[]>([]);
   const [selectedEntreprise, setSelectedEntreprise] = useState<string>("");
   const [entName, setEntName] = useState("");
   const [entRoleId, setEntRoleId] = useState("");
   const [entEmployeeRoleId, setEntEmployeeRoleId] = useState("");
+  const [entGuildId, setEntGuildId] = useState("");
   const [newEntKey, setNewEntKey] = useState("");
   const [newEntName, setNewEntName] = useState("");
+  const [newEntPrincipalRoleId, setNewEntPrincipalRoleId] = useState("");
+  const [newEntGuildId, setNewEntGuildId] = useState("");
+  const [newEntEmployeeRoleId, setNewEntEmployeeRoleId] = useState("");
   const [taxBrackets, setTaxBrackets] = useState<Bracket[]>([]);
   const [wealth, setWealth] = useState<Wealth[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,11 +53,11 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
       try {
         const { data, error: err } = await supabase
           .from('enterprises')
-          .select('key,name,role_id,employee_role_id')
+          .select('key,name,role_id,employee_role_id,enterprise_guild_id')
           .eq('guild_id', guildId)
           .order('name', { ascending: true });
         if (err) throw err;
-        let list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined }));
+        let list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined, enterpriseGuildId: e.enterprise_guild_id || undefined }));
 
         // Fallback sur la config Superadmin si la table est vide
         if (!list.length) {
@@ -64,6 +68,7 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
             name,
             roleId: d?.roleId || undefined,
             employeeRoleId: d?.employeeRoleId || undefined,
+            enterpriseGuildId: d?.enterpriseGuildId || undefined,
           }));
         }
 
@@ -89,10 +94,12 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
       setEntName(ent.name || "");
       setEntRoleId(ent.roleId || "");
       setEntEmployeeRoleId(ent.employeeRoleId || "");
+      setEntGuildId(ent.enterpriseGuildId || "");
     } else {
       setEntName("");
       setEntRoleId("");
       setEntEmployeeRoleId("");
+      setEntGuildId("");
     }
   }, [selectedEntreprise, entreprises]);
 
@@ -246,22 +253,23 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
   const saveEntreprise = async () => {
     if (!guildId || !selectedEntreprise) return;
     try {
-      const payload = { id: selectedEntreprise, name: entName.trim(), roleId: entRoleId.trim(), employeeRoleId: entEmployeeRoleId.trim() };
+      const payload = { id: selectedEntreprise, name: entName.trim(), roleId: entRoleId.trim(), employeeRoleId: entEmployeeRoleId.trim(), enterpriseGuildId: entGuildId.trim() };
       await supabase.from('enterprises').upsert({ 
         guild_id: guildId, 
         key: selectedEntreprise, 
         name: entName.trim(), 
         role_id: entRoleId.trim() || null,
-        employee_role_id: entEmployeeRoleId.trim() || null
+        employee_role_id: entEmployeeRoleId.trim() || null,
+        enterprise_guild_id: entGuildId.trim() || null
       });
       toast({ title: 'Entreprise mise à jour', description: payload.name });
       const { data, error: err } = await supabase
         .from('enterprises')
-        .select('key,name,role_id,employee_role_id')
+        .select('key,name,role_id,employee_role_id,enterprise_guild_id')
         .eq('guild_id', guildId)
         .order('name', { ascending: true });
       if (err) throw err;
-      const list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined }));
+      const list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined, enterpriseGuildId: e.enterprise_guild_id || undefined }));
       setEntreprises(list);
     } catch (e) {
       toast({ title: 'Erreur', description: handleApiError(e), variant: 'destructive' });
@@ -272,24 +280,37 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     if (!guildId) return;
     const key = newEntKey.trim();
     const name = newEntName.trim();
-    if (!key || !name) {
-      toast({ title: 'Champs requis', description: 'ID et Nom sont obligatoires.', variant: 'destructive' });
+    const principalRoleId = newEntPrincipalRoleId.trim();
+    const enterpriseGuildId = newEntGuildId.trim();
+    const employeeRoleId = newEntEmployeeRoleId.trim();
+    if (!key || !name || !principalRoleId || !enterpriseGuildId || !employeeRoleId) {
+      toast({ title: 'Champs requis', description: 'ID, Nom, ID rôle (principal), ID serveur (guild) et ID rôle employé sont obligatoires.', variant: 'destructive' });
       return;
     }
     try {
-      await supabase.from('enterprises').insert({ guild_id: guildId, key, name });
+      await supabase.from('enterprises').insert({ 
+        guild_id: guildId, // serveur principal de référencement
+        key, 
+        name,
+        role_id: principalRoleId,
+        employee_role_id: employeeRoleId,
+        enterprise_guild_id: enterpriseGuildId
+      });
       toast({ title: 'Entreprise créée', description: name });
       const { data, error: err } = await supabase
         .from('enterprises')
-        .select('key,name,role_id,employee_role_id')
+        .select('key,name,role_id,employee_role_id,enterprise_guild_id')
         .eq('guild_id', guildId)
         .order('name', { ascending: true });
       if (err) throw err;
-      const list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined }));
+      const list = (data || []).map((e: any) => ({ id: e.key, name: e.name, roleId: e.role_id || undefined, employeeRoleId: e.employee_role_id || undefined, enterpriseGuildId: e.enterprise_guild_id || undefined }));
       setEntreprises(list);
       setSelectedEntreprise(key);
       setNewEntKey("");
       setNewEntName("");
+      setNewEntPrincipalRoleId("");
+      setNewEntGuildId("");
+      setNewEntEmployeeRoleId("");
     } catch (e) {
       toast({ title: 'Erreur', description: handleApiError(e), variant: 'destructive' });
     }
@@ -398,7 +419,7 @@ const saveAll = async () => {
 
       <Card className="stat-card">
         <CardHeader>
-          <CardTitle className="text-lg">Entreprise</CardTitle>
+          <CardTitle className="text-lg">Entreprise (création et édition)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -427,7 +448,7 @@ const saveAll = async () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label>Nom de l'entreprise</Label>
               <Input value={entName} onChange={(e)=> setEntName(e.target.value)} placeholder="Ex: Bennys" />
@@ -440,6 +461,10 @@ const saveAll = async () => {
               <Label>ID rôle employé (serveur entreprise)</Label>
               <Input value={entEmployeeRoleId} onChange={(e)=> setEntEmployeeRoleId(e.target.value)} placeholder="1234567890" />
             </div>
+            <div className="space-y-2">
+              <Label>ID serveur (guild) de l'entreprise</Label>
+              <Input value={entGuildId} onChange={(e)=> setEntGuildId(e.target.value)} placeholder="1234567890" />
+            </div>
             <div className="flex items-end gap-2">
               <Button onClick={saveEntreprise} className="btn-discord">
                 <Save className="w-4 h-4 mr-2" /> Enregistrer l'entreprise
@@ -447,14 +472,26 @@ const saveAll = async () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div className="space-y-2">
               <Label>Créer une entreprise — ID (clé unique)</Label>
-              <Input value={newEntKey} onChange={(e)=> setNewEntKey(e.target.value)} placeholder="Ex: Bennys" />
+              <Input value={newEntKey} onChange={(e)=> setNewEntKey(e.target.value)} placeholder="Ex: bennys" />
             </div>
             <div className="space-y-2">
               <Label>Créer une entreprise — Nom</Label>
               <Input value={newEntName} onChange={(e)=> setNewEntName(e.target.value)} placeholder="Ex: Benny's Motorworks" />
+            </div>
+            <div className="space-y-2">
+              <Label>ID rôle (serveur principal)</Label>
+              <Input value={newEntPrincipalRoleId} onChange={(e)=> setNewEntPrincipalRoleId(e.target.value)} placeholder="1234567890" />
+            </div>
+            <div className="space-y-2">
+              <Label>ID serveur (guild) de l'entreprise</Label>
+              <Input value={newEntGuildId} onChange={(e)=> setNewEntGuildId(e.target.value)} placeholder="1234567890" />
+            </div>
+            <div className="space-y-2">
+              <Label>ID rôle employé (serveur entreprise)</Label>
+              <Input value={newEntEmployeeRoleId} onChange={(e)=> setNewEntEmployeeRoleId(e.target.value)} placeholder="1234567890" />
             </div>
             <div className="flex items-end gap-2">
               <Button onClick={createEntreprise} variant="outline">

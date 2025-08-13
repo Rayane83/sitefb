@@ -47,6 +47,7 @@ export default function SuperadminPage() {
   const canManageSuperadmins = currentUserId === ROOT_SUPERADMIN_ID;
   const [empCounts, setEmpCounts] = useState<Record<string, number>>({});
   const [counting, setCounting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   // Formulaire de création d'entreprise
   const [newEntName, setNewEntName] = useState("");
   const [newEntPrincipalRoleId, setNewEntPrincipalRoleId] = useState("");
@@ -246,6 +247,57 @@ export default function SuperadminPage() {
     }
   };
 
+  const syncEnterprisesToDB = async () => {
+    const entries = Object.entries(cfg.enterprises || {});
+    if (!cfg.principalGuildId) {
+      toast({ title: 'Guild principal manquant', description: 'Renseignez le Guild ID du serveur principal.', variant: 'destructive' });
+      return;
+    }
+    if (!entries.length) {
+      toast({ title: 'Aucune entreprise à synchroniser' });
+      return;
+    }
+    setSyncing(true);
+    try {
+      let synced = 0;
+      for (const [name, ent] of entries) {
+        const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        // Existe déjà ?
+        const { data: existing } = await supabase
+          .from('enterprises')
+          .select('id')
+          .eq('guild_id', cfg.principalGuildId)
+          .eq('key', key)
+          .maybeSingle();
+        if (existing?.id) {
+          await supabase
+            .from('enterprises')
+            .update({
+              name,
+              role_id: (ent as any)?.roleId || null,
+              employee_role_id: (ent as any)?.employeeRoleId || null,
+              enterprise_guild_id: (ent as any)?.guildId || null,
+            })
+            .eq('id', existing.id);
+        } else {
+          await supabase.from('enterprises').insert({
+            guild_id: cfg.principalGuildId,
+            key,
+            name,
+            role_id: (ent as any)?.roleId || null,
+            employee_role_id: (ent as any)?.employeeRoleId || null,
+            enterprise_guild_id: (ent as any)?.guildId || null,
+          });
+        }
+        synced++;
+      }
+      toast({ title: 'Synchronisation effectuée', description: `${synced} entreprise(s) synchronisées.` });
+    } catch (e: any) {
+      toast({ title: 'Erreur sync', description: String(e.message || e), variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  };
   return (
     <div className="container mx-auto px-4 py-8">
         <header className="mb-6 space-y-2">
@@ -290,8 +342,9 @@ export default function SuperadminPage() {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Entreprises</CardTitle>
+            <Button size="sm" variant="outline" onClick={syncEnterprisesToDB} disabled={syncing}>{syncing ? 'Sync...' : 'Synchroniser avec la base'}</Button>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Création d'une entreprise */}

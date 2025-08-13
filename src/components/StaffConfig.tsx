@@ -469,10 +469,6 @@ const saveAll = async () => {
               <Button onClick={saveEntreprise} className="btn-discord">
                 <Save className="w-4 h-4 mr-2" /> Enregistrer l'entreprise
               </Button>
-              <Button variant="outline" onClick={countEmployees} disabled={counting || !entGuildId || !entEmployeeRoleId}>
-                {counting ? 'Comptage...' : 'Compter employés'}
-              </Button>
-              {empCount !== null && <Badge variant="secondary">Employés: {empCount}</Badge>}
             </div>
           </div>
 

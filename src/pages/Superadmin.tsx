@@ -45,6 +45,8 @@ export default function SuperadminPage() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const canManageSuperadmins = currentUserId === ROOT_SUPERADMIN_ID;
+  const [empCounts, setEmpCounts] = useState<Record<string, number>>({});
+  const [counting, setCounting] = useState(false);
 
   const guildParam = useMemo(() => new URLSearchParams(location.search).get("guild") || "", [location.search]);
 
@@ -160,12 +162,59 @@ export default function SuperadminPage() {
     }
   };
 
+  const countEmployees = async (name: string, enterprise: { guildId?: string; employeeRoleId?: string }) => {
+    const guildId = enterprise.guildId;
+    const roleId = enterprise.employeeRoleId;
+    if (!guildId || !roleId) {
+      toast({ title: 'Champs manquants', description: 'Guild ID et Rôle Employé requis pour le comptage.', variant: 'destructive' });
+      return;
+    }
+    setCounting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('discord-role-counts', {
+        body: { guildId, roleIds: [roleId] },
+      });
+      if (error || !(data as any)?.ok) {
+        throw new Error((error as any)?.message || (data as any)?.error || 'Erreur inconnue');
+      }
+      const cnt = (data as any)?.counts?.[roleId] ?? 0;
+      setEmpCounts((prev) => ({ ...prev, [name]: cnt }));
+      toast({ title: 'Comptage effectué', description: `${name}: ${cnt} employé(s)` });
+    } catch (e: any) {
+      toast({ title: 'Erreur comptage', description: String(e.message || e), variant: 'destructive' });
+    } finally {
+      setCounting(false);
+    }
+  };
+
+  const countAllEmployees = async () => {
+    const entries = Object.entries(cfg.enterprises || {});
+    if (!entries.length) return;
+    setCounting(true);
+    try {
+      for (const [name, ent] of entries) {
+        await countEmployees(name, ent as any);
+      }
+      toast({ title: 'Comptage global terminé' });
+    } finally {
+      setCounting(false);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold">Espace Superadmin</h1>
-        <p className="text-muted-foreground">Gestion des IDs et rôles Discord (les secrets restent côté serveur via Supabase).</p>
-      </header>
+        <header className="mb-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Espace Superadmin</h1>
+              <p className="text-muted-foreground">Gestion des IDs et rôles Discord (les secrets restent côté serveur via Supabase).</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleHealth}>Tester bot</Button>
+              <Button variant="outline" onClick={handleSync}>Sync Discord</Button>
+            </div>
+          </div>
+        </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -200,11 +249,21 @@ export default function SuperadminPage() {
             <CardTitle>Entreprises</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">Comptage des employés via Discord</div>
+              <Button size="sm" variant="outline" onClick={countAllEmployees} disabled={counting}>Tout compter</Button>
+            </div>
             {Object.entries(cfg.enterprises || {}).map(([name, data]) => (
               <div key={name} className="rounded-md border p-4 grid gap-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-medium">{name}</h3>
-                  <Button variant="outline" size="sm" onClick={() => removeEnterprise(name)}>Supprimer</Button>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-muted-foreground">
+                      Employés: {empCounts[name] !== undefined ? empCounts[name] : '—'}
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => countEmployees(name, data as any)} disabled={counting}>Compter</Button>
+                    <Button variant="outline" size="sm" onClick={() => removeEnterprise(name)}>Supprimer</Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="grid gap-2">

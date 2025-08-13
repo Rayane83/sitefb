@@ -8,3 +8,7 @@ verify_jwt = false
 
 [functions.discord-user-roles]
 verify_jwt = false
+
+[functions.discord-role-counts]
+verify_jwt = false
+

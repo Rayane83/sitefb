@@ -383,19 +383,13 @@ const Index = () => {
                 Archives
               </RoleGate>
               
-              <RoleGate
-                allow={canAccessStaffConfig}
-                currentRole={currentRole}
-                asTabTrigger
-                value="config"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Config
-              </RoleGate>
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-6">
               <DashboardSummary guildId={selectedGuildId} currentRole={currentRole} entreprise={entreprise} />
+              <div className="mt-6">
+                <ImpotForm guildId={selectedGuildId} entreprise={entreprise} currentRole={currentRole} />
+              </div>
             </TabsContent>
 
             <TabsContent value="dotation" className="space-y-6">

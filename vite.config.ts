@@ -21,7 +21,6 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     target: 'esnext',
-    minify: 'terser',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -52,12 +51,6 @@ export default defineConfig(({ mode }) => ({
             'xlsx',
           ],
         },
-      },
-    },
-    terserOptions: {
-      compress: {
-        drop_console: mode === 'production',
-        drop_debugger: mode === 'production',
       },
     },
   },

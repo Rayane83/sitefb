@@ -281,7 +281,7 @@ const Index = () => {
                       </DropdownMenuItem>
                     </RoleGate>
                     <RoleGate allow={canAccessStaffConfig} currentRole={currentRole}>
-                      <DropdownMenuItem onSelect={(e)=>{ e.preventDefault(); setActiveTab('config'); }}>SuperStaff</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={(e)=>{ e.preventDefault(); setActiveTab('config'); }}>Config Staff</DropdownMenuItem>
                     </RoleGate>
                     <RoleGate allow={canAccessCompanyConfig} currentRole={currentRole}>
                       <DropdownMenuItem asChild>

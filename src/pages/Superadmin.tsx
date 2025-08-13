@@ -47,6 +47,11 @@ export default function SuperadminPage() {
   const canManageSuperadmins = currentUserId === ROOT_SUPERADMIN_ID;
   const [empCounts, setEmpCounts] = useState<Record<string, number>>({});
   const [counting, setCounting] = useState(false);
+  // Formulaire de création d'entreprise
+  const [newEntName, setNewEntName] = useState("");
+  const [newEntPrincipalRoleId, setNewEntPrincipalRoleId] = useState("");
+  const [newEntGuildId, setNewEntGuildId] = useState("");
+  const [newEntEmployeeRoleId, setNewEntEmployeeRoleId] = useState("");
 
   const guildParam = useMemo(() => new URLSearchParams(location.search).get("guild") || "", [location.search]);
 
@@ -100,21 +105,60 @@ export default function SuperadminPage() {
     }));
   };
 
-  const addEnterprise = () => {
-    const name = prompt("Nom de l’entreprise");
-    if (!name) return;
-    setCfg(prev => ({
-      ...prev,
-      enterprises: { ...(prev.enterprises || {}), [name]: {} },
-    }));
-  };
-
-  const removeEnterprise = (name: string) => {
+  const removeEnterprise = async (name: string) => {
+    // Supprime côté config locale
     const copy = { ...(cfg.enterprises || {}) } as any;
     delete copy[name];
     setCfg(prev => ({ ...prev, enterprises: copy }));
+    // Tentative de suppression côté Supabase (clé dérivée du nom)
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    try {
+      await supabase.from('enterprises')
+        .delete()
+        .eq('guild_id', cfg.principalGuildId || '')
+        .eq('key', key);
+    } catch {
+      // noop
+    }
   };
 
+  const handleCreateEnterprise = async () => {
+    const name = newEntName.trim();
+    const roleId = newEntPrincipalRoleId.trim();
+    const guildId = newEntGuildId.trim();
+    const employeeRoleId = newEntEmployeeRoleId.trim();
+    if (!name || !roleId || !guildId || !employeeRoleId) {
+      toast({ title: 'Champs requis', description: 'Nom, ID rôle (principal), ID serveur (guild) et ID rôle Employé sont obligatoires.', variant: 'destructive' });
+      return;
+    }
+    try {
+      const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      // Insérer côté Supabase (indexé par le serveur principal)
+      await supabase.from('enterprises').insert({
+        guild_id: cfg.principalGuildId || '',
+        key,
+        name,
+        role_id: roleId,
+        employee_role_id: employeeRoleId,
+        enterprise_guild_id: guildId,
+      });
+      // Mettre à jour la config locale pour cohérence
+      setCfg(prev => ({
+        ...prev,
+        enterprises: {
+          ...(prev.enterprises || {}),
+          [name]: { roleId, guildId, employeeRoleId },
+        },
+      }));
+      setNewEntName('');
+      setNewEntPrincipalRoleId('');
+      setNewEntGuildId('');
+      setNewEntEmployeeRoleId('');
+      toast({ title: 'Entreprise créée', description: name });
+    } catch (e: any) {
+      toast({ title: 'Erreur', description: String(e.message || e), variant: 'destructive' });
+    }
+  };
   const addSuperadmin = () => {
     if (currentUserId !== ROOT_SUPERADMIN_ID) {
       toast({ title: "Action interdite", description: "Seul l'utilisateur autorisé peut gérer les superadmins.", variant: "destructive" });
@@ -172,12 +216,10 @@ export default function SuperadminPage() {
     setCounting(true);
     try {
       const { data, error } = await supabase.functions.invoke('discord-role-counts', {
-        body: { guildId, roleIds: [roleId] },
+        body: { guild_id: guildId, role_id: roleId },
       });
-      if (error || !(data as any)?.ok) {
-        throw new Error((error as any)?.message || (data as any)?.error || 'Erreur inconnue');
-      }
-      const cnt = (data as any)?.counts?.[roleId] ?? 0;
+      if (error) throw error;
+      const cnt = (data as any)?.count ?? 0;
       setEmpCounts((prev) => ({ ...prev, [name]: cnt }));
       toast({ title: 'Comptage effectué', description: `${name}: ${cnt} employé(s)` });
     } catch (e: any) {
@@ -248,7 +290,33 @@ export default function SuperadminPage() {
           <CardHeader>
             <CardTitle>Entreprises</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Création d'une entreprise */}
+            <div className="rounded-md border p-4 grid gap-4">
+              <h4 className="font-medium">Créer une entreprise</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid gap-2">
+                  <Label>Nom de l'entreprise</Label>
+                  <Input value={newEntName} onChange={(e)=>setNewEntName(e.target.value)} placeholder="Ex: Benny's" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>ID rôle (serveur principal)</Label>
+                  <Input value={newEntPrincipalRoleId} onChange={(e)=>setNewEntPrincipalRoleId(e.target.value)} placeholder="1234567890" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>ID serveur (guild) de l'entreprise</Label>
+                  <Input value={newEntGuildId} onChange={(e)=>setNewEntGuildId(e.target.value)} placeholder="1234567890" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>ID rôle Employé (serveur entreprise)</Label>
+                  <Input value={newEntEmployeeRoleId} onChange={(e)=>setNewEntEmployeeRoleId(e.target.value)} placeholder="1234567890" />
+                </div>
+              </div>
+              <div>
+                <Button size="sm" variant="outline" onClick={handleCreateEnterprise}>Créer</Button>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">Comptage des employés via Discord</div>
               <Button size="sm" variant="outline" onClick={countAllEmployees} disabled={counting}>Tout compter</Button>
@@ -267,21 +335,20 @@ export default function SuperadminPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="grid gap-2">
-                    <Label>Rôle (serveur principal)</Label>
+                    <Label>ID rôle (serveur principal)</Label>
                     <Input value={data.roleId || ""} onChange={(e) => setEnterprise(name, "roleId", e.target.value)} placeholder="Role ID" />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Guild ID (serveur entreprise)</Label>
+                    <Label>ID serveur (guild) de l'entreprise</Label>
                     <Input value={data.guildId || ""} onChange={(e) => setEnterprise(name, "guildId", e.target.value)} placeholder="Guild ID" />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Rôle Employé (serveur entreprise)</Label>
+                    <Label>ID rôle Employé (serveur entreprise)</Label>
                     <Input value={data.employeeRoleId || ""} onChange={(e) => setEnterprise(name, "employeeRoleId", e.target.value)} placeholder="Role ID" />
                   </div>
                 </div>
               </div>
             ))}
-            <Button variant="secondary" onClick={addEnterprise}>Ajouter une entreprise</Button>
           </CardContent>
         </Card>
 

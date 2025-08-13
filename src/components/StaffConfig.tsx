@@ -448,57 +448,9 @@ const saveAll = async () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="space-y-2">
-              <Label>Nom de l'entreprise</Label>
-              <Input value={entName} onChange={(e)=> setEntName(e.target.value)} placeholder="Ex: Bennys" />
-            </div>
-            <div className="space-y-2">
-              <Label>ID rôle (serveur principal)</Label>
-              <Input value={entRoleId} onChange={(e)=> setEntRoleId(e.target.value)} placeholder="1234567890" />
-            </div>
-            <div className="space-y-2">
-              <Label>ID rôle employé (serveur entreprise)</Label>
-              <Input value={entEmployeeRoleId} onChange={(e)=> setEntEmployeeRoleId(e.target.value)} placeholder="1234567890" />
-            </div>
-            <div className="space-y-2">
-              <Label>ID serveur (guild) de l'entreprise</Label>
-              <Input value={entGuildId} onChange={(e)=> setEntGuildId(e.target.value)} placeholder="1234567890" />
-            </div>
-            <div className="flex items-end gap-2">
-              <Button onClick={saveEntreprise} className="btn-discord">
-                <Save className="w-4 h-4 mr-2" /> Enregistrer l'entreprise
-              </Button>
-            </div>
-          </div>
+          {/* Édition d'entreprise déplacée dans Espace Superadmin */}
 
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div className="space-y-2">
-              <Label>Créer une entreprise — ID (clé unique)</Label>
-              <Input value={newEntKey} onChange={(e)=> setNewEntKey(e.target.value)} placeholder="Ex: bennys" />
-            </div>
-            <div className="space-y-2">
-              <Label>Créer une entreprise — Nom</Label>
-              <Input value={newEntName} onChange={(e)=> setNewEntName(e.target.value)} placeholder="Ex: Benny's Motorworks" />
-            </div>
-            <div className="space-y-2">
-              <Label>ID rôle (serveur principal)</Label>
-              <Input value={newEntPrincipalRoleId} onChange={(e)=> setNewEntPrincipalRoleId(e.target.value)} placeholder="1234567890" />
-            </div>
-            <div className="space-y-2">
-              <Label>ID serveur (guild) de l'entreprise</Label>
-              <Input value={newEntGuildId} onChange={(e)=> setNewEntGuildId(e.target.value)} placeholder="1234567890" />
-            </div>
-            <div className="space-y-2">
-              <Label>ID rôle employé (serveur entreprise)</Label>
-              <Input value={newEntEmployeeRoleId} onChange={(e)=> setNewEntEmployeeRoleId(e.target.value)} placeholder="1234567890" />
-            </div>
-            <div className="flex items-end gap-2">
-              <Button onClick={createEntreprise} variant="outline">
-                <Plus className="w-4 h-4 mr-2" /> Créer l'entreprise
-              </Button>
-            </div>
-          </div>
+          {/* Création d'entreprise déplacée dans Espace Superadmin */}
 
           <div className="flex items-end gap-2">
             <Button onClick={saveAll} disabled={loading} className="btn-discord">

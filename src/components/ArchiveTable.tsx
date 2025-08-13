@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
 import { handleApiError } from '@/lib/api';
-import { debounce } from '@/lib/fmt';
+import { useDebounce } from '@/hooks';
 import { 
   Search, 
   Archive, 
@@ -43,6 +43,7 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [entrepriseFilter, setEntrepriseFilter] = useState<string>('all');
   const { toast } = useToast();
@@ -154,7 +155,7 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [rows, allEntreprises]);
 
-  // Filtrage côté client complet
+  // Filtrage côté client complet avec debounce
   const filteredRows = useMemo(() => {
     let filtered = rows;
     
@@ -172,16 +173,16 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
       );
     }
     
-    // Filtre par recherche textuelle
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Filtre par recherche textuelle avec debounce
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       filtered = filtered.filter(row => 
         JSON.stringify(row).toLowerCase().includes(query)
       );
     }
     
     return filtered;
-  }, [rows, searchQuery, typeFilter, entrepriseFilter, isStaffRole, isDotRole]);
+  }, [rows, debouncedSearchQuery, typeFilter, entrepriseFilter, isStaffRole, isDotRole]);
 
   // Headers générés dynamiquement depuis la première ligne filtrée
   const headers = useMemo(() => {
@@ -189,15 +190,10 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     return Object.keys(filteredRows[0]);
   }, [filteredRows]);
 
-  // Debounced search
-  const debouncedSetSearch = useMemo(
-    () => debounce((value: string) => setSearchQuery(value), 300),
-    []
-  );
-
-  const handleSearchChange = (value: string) => {
-    debouncedSetSearch(value);
-  };
+  // Direct search handler (debouncing handled by useDebounce hook)
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+  }, []);
 
   // Export Excel
   const exportToExcel = () => {
@@ -557,6 +553,7 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
             <Search className="w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Rechercher dans les archives..."
+              value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="flex-1"
             />
@@ -625,8 +622,8 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
           {/* Résultats */}
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <div>
-              {searchQuery && (
-                <span>{filteredRows.length} résultat(s) trouvé(s) pour "{searchQuery}"</span>
+              {debouncedSearchQuery && (
+                <span>{filteredRows.length} résultat(s) trouvé(s) pour "{debouncedSearchQuery}"</span>
               )}
               {(typeFilter !== 'all' || entrepriseFilter !== 'all') && (
                 <span className="ml-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 // Components
 import { LoginScreen } from '@/components/LoginScreen';
-
+import { SEOHead } from '@/components/SEOHead';
 import { RoleGate } from '@/components/RoleGate';
 import { DashboardSummary } from '@/components/DashboardSummary';
 import { DotationForm } from '@/components/DotationForm';
@@ -15,21 +15,21 @@ import { BlanchimentToggle } from '@/components/BlanchimentToggle';
 import { ArchiveTable } from '@/components/ArchiveTable';
 import { DocsUpload } from '@/components/DocsUpload';
 import StaffConfig from '@/components/StaffConfig';
+
+// Hooks
+import { useAuth, useGuilds, useGuildRoles } from '@/hooks';
+
 // Utils
 import { 
-  getUserGuildRoles, 
-  resolveRole, 
-  getEntrepriseFromRoles,
   getRoleDisplayName,
   getRoleColor,
   canAccessDotation,
   canAccessImpot,
   canAccessBlanchiment,
   canAccessStaffConfig,
+  canAccessCompanyConfig,
   isDot,
 } from '@/lib/roles';
-import { canAccessCompanyConfig } from '@/lib/roles';
-import { Role, Guild, User } from '@/lib/types';
 
 // Icons
 import { 
@@ -47,178 +47,50 @@ import {
 
 import { Link } from 'react-router-dom';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
-  // Auth state
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  // Custom hooks for clean state management
+  const auth = useAuth();
+  const guilds = useGuilds();
+  const guildRoles = useGuildRoles(guilds.selectedGuildId);
   
-  // Guild & Role state
-  const [guilds, setGuilds] = useState<Guild[]>([]);
-  const [selectedGuildId, setSelectedGuildId] = useState<string>('');
-  const [currentRole, setCurrentRole] = useState<Role>('employe');
-  const [entreprise, setEntreprise] = useState<string>('');
-  const [userRoles, setUserRoles] = useState<string[]>([]);
-  
-  // Loading state
-  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
-
-  // Supabase auth session
-  useEffect(() => {
-    // Set up auth listener FIRST to catch the OAuth redirect event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsLoggedIn(!!session);
-      if (session) {
-        const u = session.user;
-        setUser({
-          id: u.id,
-          name: (u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Utilisateur') as string,
-          avatar: (u.user_metadata?.avatar_url || u.user_metadata?.avatar) as string | undefined,
-          discriminator: ''
-        } as any);
-        // Defer any Supabase calls to avoid deadlocks in the callback
-        setTimeout(() => { loadGuilds(); }, 0);
-      } else {
-        setUser(null);
-        setGuilds([]);
-        setSelectedGuildId('');
-      }
-    });
-
-    // THEN check for an existing session (including one just returned via URL hash)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-      if (session) {
-        const u = session.user;
-        setUser({
-          id: u.id,
-          name: (u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Utilisateur') as string,
-          avatar: (u.user_metadata?.avatar_url || u.user_metadata?.avatar) as string | undefined,
-          discriminator: ''
-        } as any);
-        setTimeout(() => { loadGuilds(); }, 0);
-      }
-    });
-
-    return () => { try { subscription.unsubscribe(); } catch {} };
-  }, []);
-  // Active tab
+  // Local UI state
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // Memoized derived state
+  const currentEntreprise = useMemo(() => 
+    guildRoles.entreprise || 'Aucune Entreprise', 
+    [guildRoles.entreprise]
+  );
 
-  // Login via Supabase OAuth (Discord)
-  const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'discord',
-      options: {
-        redirectTo: window.location.origin + window.location.pathname + window.location.search,
-      },
-    });
-  };
+  const isLoading = useMemo(() => 
+    auth.isLoading || guilds.isLoading || guildRoles.isLoading, 
+    [auth.isLoading, guilds.isLoading, guildRoles.isLoading]
+  );
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setIsLoggedIn(false);
-    setUser(null);
-    setGuilds([]);
-    setSelectedGuildId('');
-    setCurrentRole('employe');
-    setEntreprise('');
-    setUserRoles([]);
-  };
-
-  // Load available guilds from Supabase config and DB
-  const loadGuilds = async () => {
-    try {
-      const ids = new Set<string>();
-      const { data: dc } = await supabase
-        .from('discord_config')
-        .select('data')
-        .eq('id', 'default')
-        .maybeSingle();
-      const conf = (dc?.data as any) || {};
-      if (conf.principalGuildId) ids.add(conf.principalGuildId);
-      if (conf.dot?.guildId) ids.add(conf.dot.guildId);
-      if (conf.enterprises) {
-        Object.values(conf.enterprises as any).forEach((e: any) => { if (e?.guildId) ids.add(e.guildId); });
-      }
-      const { data: ents } = await supabase
-        .from('enterprises')
-        .select('guild_id,name')
-        .order('name', { ascending: true });
-      ents?.forEach((e: any) => { if (e.guild_id) ids.add(e.guild_id); });
-
-      const result = Array.from(ids).map((id) => ({ id, name: id, icon: '' })) as Guild[];
-      setGuilds(result);
-
-      // Auto-select principal guild if configured; otherwise use provided default ID; else first available
-      const defaultPrincipal = '1404608015230832742';
-      const targetGuildId = (conf.principalGuildId as string | undefined) || defaultPrincipal || result[0]?.id || '';
-      if (targetGuildId) {
-        setSelectedGuildId(targetGuildId);
-      }
-    } catch (e) {
-      console.warn('loadGuilds error', e);
-    }
-  };
-
-  // Update URL when guild changes
-  const updateURLGuild = (guildId: string) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('guild', guildId);
-    window.history.pushState({}, '', url.toString());
-  };
-
-  // Handle guild change
-  const handleGuildChange = (guildId: string) => {
-    setSelectedGuildId(guildId);
-    updateURLGuild(guildId);
-  };
-
-  // Fetch user roles for selected guild
-  useEffect(() => {
-    let alive = true;
-
-    async function fetchUserRoles() {
-      if (!selectedGuildId) return;
-      
-      setIsLoadingRoles(true);
-      
-      try {
-        const roles = await getUserGuildRoles(selectedGuildId);
-        
-        if (!alive) return;
-        
-        setUserRoles(roles);
-        setCurrentRole(resolveRole(roles));
-        setEntreprise(getEntrepriseFromRoles(roles));
-      } catch (error) {
-        console.error('Failed to fetch user roles:', error);
-        if (alive) {
-          setCurrentRole('employe');
-          setEntreprise('Aucune Entreprise');
-        }
-      } finally {
-        if (alive) {
-          setIsLoadingRoles(false);
-        }
-      }
-    }
-
-    fetchUserRoles();
-
-    return () => {
-      alive = false;
-    };
-  }, [selectedGuildId]);
-
-  if (!isLoggedIn) {
-    return <LoginScreen onLogin={handleLogin} />;
+  if (!auth.isAuthenticated) {
+    return (
+      <>
+        <SEOHead 
+          title="Connexion - Portail Entreprise Flashback Fa"
+          description="Connectez-vous au portail de gestion des entreprises Discord avec votre compte Discord."
+        />
+        <LoginScreen onLogin={auth.signInWithDiscord} />
+      </>
+    );
   }
 
+  const pageTitle = activeTab === 'dashboard' 
+    ? 'Dashboard - Portail Entreprise Flashback Fa'
+    : `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} - Portail Entreprise Flashback Fa`;
+
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <SEOHead 
+        title={pageTitle}
+        description={`Gérez votre entreprise Discord avec le portail Flashback Fa - ${currentEntreprise}`}
+      />
+      <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="container mx-auto px-4 py-4">
@@ -241,24 +113,24 @@ const Index = () => {
               {/* User info */}
               <div className="flex items-center space-x-3">
                 <div className="text-right">
-                  <p className="text-sm font-medium">{user?.name}</p>
+                  <p className="text-sm font-medium">{auth.user?.name}</p>
                   <div className="flex items-center space-x-2">
-                    <Badge className={getRoleColor(currentRole)}>
-                      {getRoleDisplayName(currentRole)}
+                    <Badge className={getRoleColor(guildRoles.currentRole)}>
+                      {getRoleDisplayName(guildRoles.currentRole)}
                     </Badge>
-                    {entreprise && entreprise !== 'Aucune Entreprise' && (
+                    {currentEntreprise && currentEntreprise !== 'Aucune Entreprise' && (
                       <Badge variant="outline" className="text-xs">
-                        {entreprise}
+                        {currentEntreprise}
                       </Badge>
                     )}
                   </div>
                 </div>
                 
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                  {user?.avatar ? (
+                  {auth.user?.avatar ? (
                     <img 
-                      src={user.avatar} 
-                      alt={user.name} 
+                      src={auth.user.avatar} 
+                      alt={auth.user.name} 
                       className="w-full h-full rounded-full" 
                     />
                   ) : (
@@ -275,17 +147,17 @@ const Index = () => {
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Administration</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <RoleGate allow={(role) => role === 'staff'} currentRole={currentRole}>
+                    <RoleGate allow={(role) => role === 'staff'} currentRole={guildRoles.currentRole}>
                       <DropdownMenuItem asChild>
                         <Link to="/superadmin">Espace Superadmin</Link>
                       </DropdownMenuItem>
                     </RoleGate>
-                    <RoleGate allow={canAccessStaffConfig} currentRole={currentRole}>
+                    <RoleGate allow={canAccessStaffConfig} currentRole={guildRoles.currentRole}>
                       <DropdownMenuItem onSelect={(e)=>{ e.preventDefault(); setActiveTab('config'); }}>Config Staff</DropdownMenuItem>
                     </RoleGate>
-                    <RoleGate allow={canAccessCompanyConfig} currentRole={currentRole}>
+                    <RoleGate allow={canAccessCompanyConfig} currentRole={guildRoles.currentRole}>
                       <DropdownMenuItem asChild>
-                        <Link to={`/patron-config?guild=${selectedGuildId}`}>Config Patron</Link>
+                        <Link to={`/patron-config?guild=${guilds.selectedGuildId}`}>Config Patron</Link>
                       </DropdownMenuItem>
                     </RoleGate>
                   </DropdownMenuContent>
@@ -294,7 +166,7 @@ const Index = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleLogout}
+                  onClick={auth.signOut}
                   aria-label="Déconnexion"
                   title="Déconnexion"
                 >
@@ -310,7 +182,7 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {!selectedGuildId ? (
+        {!guilds.selectedGuildId ? (
           <Card className="stat-card max-w-md mx-auto">
             <CardContent className="p-8 text-center">
               <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -325,7 +197,7 @@ const Index = () => {
             <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
               <RoleGate
                 allow={() => true}
-                currentRole={currentRole}
+                currentRole={guildRoles.currentRole}
                 asTabTrigger
                 value="dashboard"
               >
@@ -335,7 +207,7 @@ const Index = () => {
               
               <RoleGate
                 allow={canAccessDotation}
-                currentRole={currentRole}
+                currentRole={guildRoles.currentRole}
                 asTabTrigger
                 value="dotation"
               >
@@ -345,7 +217,7 @@ const Index = () => {
               
               <RoleGate
                 allow={canAccessImpot}
-                currentRole={currentRole}
+                currentRole={guildRoles.currentRole}
                 asTabTrigger
                 value="impot"
               >
@@ -355,7 +227,7 @@ const Index = () => {
               
               <RoleGate
                 allow={isDot}
-                currentRole={currentRole}
+                currentRole={guildRoles.currentRole}
                 asTabTrigger
                 value="docs"
               >
@@ -365,7 +237,7 @@ const Index = () => {
               
               <RoleGate
                 allow={canAccessBlanchiment}
-                currentRole={currentRole}
+                currentRole={guildRoles.currentRole}
                 asTabTrigger
                 value="blanchiment"
               >
@@ -375,7 +247,7 @@ const Index = () => {
               
               <RoleGate
                 allow={() => true}
-                currentRole={currentRole}
+                currentRole={guildRoles.currentRole}
                 asTabTrigger
                 value="archive"
               >
@@ -386,58 +258,74 @@ const Index = () => {
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-6">
-              <DashboardSummary guildId={selectedGuildId} currentRole={currentRole} entreprise={entreprise} />
+              <DashboardSummary 
+                guildId={guilds.selectedGuildId} 
+                currentRole={guildRoles.currentRole} 
+                entreprise={currentEntreprise} 
+              />
             </TabsContent>
 
             <TabsContent value="dotation" className="space-y-6">
-              <RoleGate allow={canAccessDotation} currentRole={currentRole}>
+              <RoleGate allow={canAccessDotation} currentRole={guildRoles.currentRole}>
                 <DotationForm 
-                  guildId={selectedGuildId} 
-                  entreprise={entreprise}
-                  currentRole={getRoleDisplayName(currentRole)}
+                  guildId={guilds.selectedGuildId} 
+                  entreprise={currentEntreprise}
+                  currentRole={getRoleDisplayName(guildRoles.currentRole)}
                 />
               </RoleGate>
             </TabsContent>
 
             <TabsContent value="impot" className="space-y-6">
-              <RoleGate allow={canAccessImpot} currentRole={currentRole}>
-                <ImpotForm guildId={selectedGuildId} entreprise={entreprise} currentRole={currentRole} />
+              <RoleGate allow={canAccessImpot} currentRole={guildRoles.currentRole}>
+                <ImpotForm 
+                  guildId={guilds.selectedGuildId} 
+                  entreprise={currentEntreprise} 
+                  currentRole={guildRoles.currentRole} 
+                />
               </RoleGate>
             </TabsContent>
 
             <TabsContent value="blanchiment" className="space-y-6">
-              <RoleGate allow={canAccessBlanchiment} currentRole={currentRole}>
+              <RoleGate allow={canAccessBlanchiment} currentRole={guildRoles.currentRole}>
                 <BlanchimentToggle 
-                  guildId={selectedGuildId}
-                  entreprise={entreprise}
-                  currentRole={getRoleDisplayName(currentRole)}
+                  guildId={guilds.selectedGuildId}
+                  entreprise={currentEntreprise}
+                  currentRole={getRoleDisplayName(guildRoles.currentRole)}
                 />
               </RoleGate>
             </TabsContent>
 
             <TabsContent value="docs" className="space-y-6">
-              <RoleGate allow={isDot} currentRole={currentRole}>
-                <DocsUpload guildId={selectedGuildId} entreprise={entreprise} role={currentRole} />
+              <RoleGate allow={isDot} currentRole={guildRoles.currentRole}>
+                <DocsUpload 
+                  guildId={guilds.selectedGuildId} 
+                  entreprise={currentEntreprise} 
+                  role={guildRoles.currentRole} 
+                />
               </RoleGate>
             </TabsContent>
 
             <TabsContent value="archive" className="space-y-6">
               <ArchiveTable 
-                guildId={selectedGuildId}
-                currentRole={getRoleDisplayName(currentRole)}
-                entreprise={entreprise}
+                guildId={guilds.selectedGuildId}
+                currentRole={getRoleDisplayName(guildRoles.currentRole)}
+                entreprise={currentEntreprise}
               />
             </TabsContent>
 
             <TabsContent value="config" className="space-y-6">
-              <RoleGate allow={canAccessStaffConfig} currentRole={currentRole}>
-                <StaffConfig guildId={selectedGuildId} currentRole={getRoleDisplayName(currentRole)} />
+              <RoleGate allow={canAccessStaffConfig} currentRole={guildRoles.currentRole}>
+                <StaffConfig 
+                  guildId={guilds.selectedGuildId} 
+                  currentRole={getRoleDisplayName(guildRoles.currentRole)} 
+                />
               </RoleGate>
             </TabsContent>
           </Tabs>
         )}
       </main>
     </div>
+    </>
   );
 };
 

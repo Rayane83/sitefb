@@ -220,7 +220,7 @@ useEffect(() => {
   };
 
   const addGradeRule = () => setCfg((prev) => ({ ...prev, gradeRules: [...prev.gradeRules, { grade: "", roleDiscordId: "", pourcentageCA: 0, tauxHoraire: 0 } as GradeRule] }));
-  const addErrorTier = () => setCfg((prev) => ({ ...prev, errorTiers: [...prev.errorTiers, { seuil: 0, bonus: 0 } as TierConfig].slice(0, 10) }));
+  // const addErrorTier = () => {}; // paliers globaux supprimés
 
   // Gestion des paliers de primes dans salaire
   const addPrimeTier = () => {
@@ -461,7 +461,38 @@ useEffect(() => {
               </div>
             )}
           </div>
+
+          {/* Paliers de primes (seuil $ -> montant de prime $) */}
+          <div className="space-y-3">
+            <Label>Paliers de primes</Label>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="p-2 text-left">Seuil ($ de CA)</th>
+                    <th className="p-2 text-left">Prime ($)</th>
+                    <th className="p-2 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cfg.salaire.paliersPrimes.map((t, idx) => (
+                    <tr key={idx} className="border-b">
+                      <td className="p-2 w-40"><Input type="number" value={t.seuil} onChange={(e)=> updatePrimeTier(idx, 'seuil', Number(e.target.value) || 0)} /></td>
+                      <td className="p-2 w-40"><Input type="number" value={t.prime} onChange={(e)=> updatePrimeTier(idx, 'prime', Number(e.target.value) || 0)} /></td>
+                      <td className="p-2">
+                        <Button variant="destructive" size="sm" onClick={()=> removePrimeTier(idx)}><Trash2 className="w-4 h-4"/></Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Button variant="outline" onClick={addPrimeTier} disabled={cfg.salaire.paliersPrimes.length>=10}>Ajouter un palier</Button>
+            <p className="text-xs text-muted-foreground">Exemple: seuil 3000 → prime 10000$.</p>
+          </div>
+
           {/* Mode de calcul */}
+
           <div className="space-y-3">
             <Label>Mode de calcul</Label>
             <div className="flex flex-col gap-2 ml-1">
@@ -524,19 +555,12 @@ useEffect(() => {
             <CardTitle className="text-lg">Paramètre {param.label}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Actif</Label>
                 <Input type="checkbox" checked={param.actif} onChange={(e)=> setCfg((prev)=> ({
                   ...prev,
                   parametres: { ...prev.parametres, [key]: { ...prev.parametres[key as keyof CompanyConfig["parametres"]], actif: e.target.checked } },
-                }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Poids</Label>
-                <Input type="number" value={param.poids} onChange={(e)=> setCfg((prev)=> ({
-                  ...prev,
-                  parametres: { ...prev.parametres, [key]: { ...prev.parametres[key as keyof CompanyConfig["parametres"]], poids: Number(e.target.value)||0 } },
                 }))} />
               </div>
               <div className="space-y-2">
@@ -610,33 +634,7 @@ useEffect(() => {
         </CardContent>
       </Card>
 
-      {/* Paliers d'erreur globaux */}
-      <Card className="stat-card">
-        <CardHeader>
-          <CardTitle className="text-lg">Paliers globaux (bonus/pénalités)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="p-2 text-left">Seuil</th>
-                  <th className="p-2 text-left">Bonus/Pénalité</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cfg.errorTiers.map((t, idx) => (
-                  <tr key={idx} className="border-b">
-                    <td className="p-2"><Input type="number" value={t.seuil} onChange={(e)=> setCfg((prev)=> ({...prev, errorTiers: prev.errorTiers.map((r,i)=> i===idx?{...r, seuil:Number(e.target.value)||0}:r) }))} /></td>
-                    <td className="p-2"><Input type="number" value={t.bonus} onChange={(e)=> setCfg((prev)=> ({...prev, errorTiers: prev.errorTiers.map((r,i)=> i===idx?{...r, bonus:Number(e.target.value)||0}:r) }))} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Button variant="outline" onClick={addErrorTier} disabled={cfg.errorTiers.length>=10}>Ajouter un palier</Button>
-        </CardContent>
-      </Card>
+      {/* Section Paliers globaux retirée selon demande */}
 
       {/* Employés */}
       <Card className="stat-card">

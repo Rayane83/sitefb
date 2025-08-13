@@ -216,10 +216,13 @@ export default function SuperadminPage() {
     setCounting(true);
     try {
       const { data, error } = await supabase.functions.invoke('discord-role-counts', {
-        body: { guild_id: guildId, role_id: roleId },
+        body: { guildId, roleIds: [roleId] },
       });
-      if (error) throw error;
-      const cnt = (data as any)?.count ?? 0;
+      if (error || !(data as any)?.ok) {
+        throw new Error((error as any)?.message || (data as any)?.error || 'Erreur inconnue');
+      }
+      const counts = (data as any)?.counts || {};
+      const cnt = counts[roleId] ?? 0;
       setEmpCounts((prev) => ({ ...prev, [name]: cnt }));
       toast({ title: 'Comptage effectué', description: `${name}: ${cnt} employé(s)` });
     } catch (e: any) {

@@ -38,11 +38,11 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
   const isStaffReadOnly = (currentRole || '').toLowerCase().includes('staff');
   const [reportId, setReportId] = useState<string | null>(null);
   const [initialRowIds, setInitialRowIds] = useState<string[]>([]);
-
   // Tableaux simples: Dépense déductible et Tableau des retraits
   type SimpleEntry = { id: string; date: string; label: string; amount: number };
   const [expenses, setExpenses] = useState<SimpleEntry[]>([]);
   const [withdrawals, setWithdrawals] = useState<SimpleEntry[]>([]);
+  const [pendingReports, setPendingReports] = useState<any[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -78,18 +78,32 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
 
           setPaliers(paliersToUse);
 
-          // Charger dernier rapport de dotation (si existe)
-          const { data: reps, error: e2 } = await supabase
+          // Charger la liste des rapports non archivés (en attente)
+          const { data: pend, error: ePend } = await supabase
             .from('dotation_reports')
-            .select('id, solde_actuel, totals, employees_count')
+            .select('id, created_at, solde_actuel, totals, employees_count')
             .eq('guild_id', guildId)
             .eq('entreprise_key', entreprise)
-            .order('created_at', { ascending: false })
-            .limit(1);
-          if (e2) throw e2;
+            .is('archived_at', null)
+            .order('created_at', { ascending: false });
+          if (ePend) throw ePend;
+          setPendingReports(pend || []);
 
-          if (reps && reps.length > 0) {
-            const rep = reps[0];
+          // Déterminer quel rapport charger dans le formulaire (le plus récent non archivé si existe)
+          let rep: any | null = pend && pend.length ? pend[0] : null;
+          if (!rep) {
+            const { data: reps, error: e2 } = await supabase
+              .from('dotation_reports')
+              .select('id, solde_actuel')
+              .eq('guild_id', guildId)
+              .eq('entreprise_key', entreprise)
+              .order('created_at', { ascending: false })
+              .limit(1);
+            if (e2) throw e2;
+            rep = reps && reps.length ? reps[0] : null;
+          }
+
+          if (rep) {
             const { data: rows, error: e3 } = await supabase
               .from('dotation_rows')
               .select('*')
@@ -116,6 +130,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
             setInitialRowIds([]);
             setDotationData({ rows: [], soldeActuel: 0 });
           }
+
         } catch (err) {
           if (alive) {
             setError(handleApiError(err));
@@ -133,6 +148,41 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
       alive = false;
     };
   }, [guildId, entreprise]);
+
+  const loadReport = async (id: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { data: rep, error: e1 } = await supabase
+        .from('dotation_reports')
+        .select('id, solde_actuel')
+        .eq('id', id)
+        .maybeSingle();
+      if (e1) throw e1;
+      const { data: rows, error: e2 } = await supabase
+        .from('dotation_rows')
+        .select('*')
+        .eq('report_id', id);
+      if (e2) throw e2;
+      const mapped: DotationRow[] = (rows || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        run: Number(r.run) || 0,
+        facture: Number(r.facture) || 0,
+        vente: Number(r.vente) || 0,
+        ca_total: Number(r.ca_total) || 0,
+        salaire: Number(r.salaire) || 0,
+        prime: Number(r.prime) || 0,
+      }));
+      setReportId(id);
+      setInitialRowIds(mapped.map((r)=> r.id));
+      setDotationData({ rows: mapped, soldeActuel: Number(rep?.solde_actuel) || 0 });
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const updateRow = (id: string, field: keyof DotationRow, value: any) => {
     if (!dotationData) return;
@@ -443,6 +493,26 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
         date: entry.date,
       });
       if (archErr) throw archErr;
+
+      // Marquer le rapport comme archivé s'il existe
+      if (reportId) {
+        const { error: updErr } = await supabase
+          .from('dotation_reports')
+          .update({ archived_at: new Date().toISOString() })
+          .eq('id', reportId);
+        if (updErr) throw updErr;
+
+        // Rafraîchir la liste des enregistrements en attente
+        const { data: pend, error: ePend } = await supabase
+          .from('dotation_reports')
+          .select('id, created_at, solde_actuel, totals, employees_count')
+          .eq('guild_id', guildId)
+          .eq('entreprise_key', entreprise)
+          .is('archived_at', null)
+          .order('created_at', { ascending: false });
+        if (!ePend) setPendingReports(pend || []);
+      }
+
       toast({ title: 'Envoyé aux archives', description: 'Le rapport a été archivé.' });
     } catch (e) {
       toast({ title: 'Erreur', description: 'Impossible d’archiver.', variant: 'destructive' });
@@ -458,6 +528,45 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
           <Badge variant="secondary">{dotationData.rows.length} employé(s)</Badge>
         </div>
       </div>
+
+      {/* Enregistrements non archivés */}
+      <Card className="stat-card">
+        <CardHeader>
+          <CardTitle className="text-lg">Enregistrements non archivés</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {pendingReports.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun enregistrement en attente.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Date</th>
+                    <th className="text-center p-2">Employés</th>
+                    <th className="text-center p-2">Solde</th>
+                    <th className="text-center p-2">CA total</th>
+                    <th className="text-center p-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingReports.map((r) => (
+                    <tr key={r.id} className="border-b hover:bg-muted/50">
+                      <td className="p-2">{new Date(r.created_at).toLocaleString()}</td>
+                      <td className="p-2 text-center">{r.employees_count ?? 0}</td>
+                      <td className="p-2 text-center">{formatCurrencyDollar(Number(r.solde_actuel) || 0)}</td>
+                      <td className="p-2 text-center">{formatCurrencyDollar(Number((r.totals as any)?.totalCA || 0))}</td>
+                      <td className="p-2 text-center">
+                        <Button size="sm" variant="outline" onClick={() => loadReport(r.id)}>Ouvrir</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Solde actuel */}
       <Card className="stat-card">

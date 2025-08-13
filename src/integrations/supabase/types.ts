@@ -244,6 +244,7 @@ export type Database = {
       }
       dotation_reports: {
         Row: {
+          archived_at: string | null
           created_at: string
           created_by: string | null
           employees_count: number | null
@@ -255,6 +256,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
           employees_count?: number | null
@@ -266,6 +268,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
           employees_count?: number | null

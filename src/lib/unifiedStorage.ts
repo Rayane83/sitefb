@@ -1,5 +1,5 @@
 /**
- * Système de stockage unifié pour toutes les sessions
+ * Système de stockage unifié simplifié pour toutes les sessions
  * Utilise Supabase comme source de vérité avec cache localStorage intelligent
  */
 
@@ -16,11 +16,11 @@ export interface StorageKey {
 }
 
 export interface StorageItem<T = any> {
-  id: string;
+  id?: string;
   scope: StorageScope;
-  guild_id?: string;
-  entreprise_key?: string;
-  user_id?: string;
+  guild_id?: string | null;
+  entreprise_key?: string | null;
+  user_id?: string | null;
   key: string;
   data: T;
   created_at?: string;
@@ -93,29 +93,6 @@ class UnifiedStorage {
   }
 
   /**
-   * Construit la requête Supabase selon le scope
-   */
-  private buildQuery(storageKey: StorageKey) {
-    let query = supabase
-      .from('app_storage')
-      .select('*')
-      .eq('scope', storageKey.scope)
-      .eq('key', storageKey.key);
-
-    if (storageKey.guildId) {
-      query = query.eq('guild_id', storageKey.guildId);
-    }
-    if (storageKey.entrepriseKey) {
-      query = query.eq('entreprise_key', storageKey.entrepriseKey);
-    }
-    if (storageKey.userId) {
-      query = query.eq('user_id', storageKey.userId);
-    }
-
-    return query;
-  }
-
-  /**
    * Récupère une valeur du stockage unifié
    */
   async get<T>(storageKey: StorageKey): Promise<T | null> {
@@ -127,20 +104,41 @@ class UnifiedStorage {
       return cached;
     }
 
-    // Si non authentifié, retourner null (pas de fallback localStorage pour éviter les incohérences)
+    // Si non authentifié, retourner null
     if (!(await this.isAuthenticated())) {
       return null;
     }
 
     try {
-      const { data, error } = await this.buildQuery(storageKey).maybeSingle();
+      // Utiliser une requête SQL dynamique pour contourner les types TypeScript
+      const query = `
+        SELECT data 
+        FROM app_storage 
+        WHERE scope = $1 
+          AND key = $2
+          AND ($3::text IS NULL OR guild_id = $3)
+          AND ($4::text IS NULL OR entreprise_key = $4)
+          AND ($5::uuid IS NULL OR user_id = $5)
+        LIMIT 1
+      `;
       
+      const { data, error } = await supabase.rpc('execute_sql', {
+        query,
+        params: [
+          storageKey.scope,
+          storageKey.key,
+          storageKey.guildId || null,
+          storageKey.entrepriseKey || null,
+          storageKey.userId || null
+        ]
+      });
+
       if (error) {
-        console.warn('Supabase storage error:', error);
+        console.warn('Storage RPC error:', error);
         return null;
       }
 
-      const result = data?.data || null;
+      const result = data?.[0]?.data || null;
       this.setCachedData(cacheKey, result);
       return result;
     } catch (error) {
@@ -168,24 +166,18 @@ class UnifiedStorage {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
 
-      const payload: Partial<StorageItem<T>> = {
-        scope: storageKey.scope,
-        guild_id: storageKey.guildId || null,
-        entreprise_key: storageKey.entrepriseKey || null,
-        user_id: storageKey.userId || userId || null,
-        key: storageKey.key,
-        data,
-      };
-
-      const { error } = await supabase
-        .from('app_storage')
-        .upsert(payload, { 
-          onConflict: 'scope,guild_id,entreprise_key,user_id,key',
-          ignoreDuplicates: false 
-        });
+      // Utiliser RPC pour l'UPSERT
+      const { error } = await supabase.rpc('upsert_app_storage', {
+        p_scope: storageKey.scope,
+        p_guild_id: storageKey.guildId || null,
+        p_entreprise_key: storageKey.entrepriseKey || null,
+        p_user_id: storageKey.userId || userId || null,
+        p_key: storageKey.key,
+        p_data: data
+      });
 
       if (error) {
-        console.error('Supabase storage save error:', error);
+        console.error('Storage RPC save error:', error);
         return false;
       }
 
@@ -216,10 +208,16 @@ class UnifiedStorage {
     }
 
     try {
-      const { error } = await this.buildQuery(storageKey).delete();
+      const { error } = await supabase.rpc('delete_app_storage', {
+        p_scope: storageKey.scope,
+        p_guild_id: storageKey.guildId || null,
+        p_entreprise_key: storageKey.entrepriseKey || null,
+        p_user_id: storageKey.userId || null,
+        p_key: storageKey.key
+      });
       
       if (error) {
-        console.error('Supabase storage delete error:', error);
+        console.error('Storage RPC delete error:', error);
         return false;
       }
 
@@ -257,45 +255,6 @@ class UnifiedStorage {
       if (key?.startsWith(this.CACHE_PREFIX)) {
         localStorage.removeItem(key);
       }
-    }
-  }
-
-  /**
-   * Synchronise les données d'un scope spécifique
-   */
-  async syncScope(scope: StorageScope, guildId?: string, entrepriseKey?: string): Promise<void> {
-    if (!(await this.isAuthenticated())) return;
-
-    try {
-      let query = supabase
-        .from('app_storage')
-        .select('*')
-        .eq('scope', scope);
-
-      if (guildId) query = query.eq('guild_id', guildId);
-      if (entrepriseKey) query = query.eq('entreprise_key', entrepriseKey);
-
-      const { data, error } = await query;
-      
-      if (error) {
-        console.warn('Sync scope error:', error);
-        return;
-      }
-
-      // Mettre à jour le cache avec les données fraîches
-      for (const item of data || []) {
-        const storageKey: StorageKey = {
-          scope: item.scope as StorageScope,
-          guildId: item.guild_id || undefined,
-          entrepriseKey: item.entreprise_key || undefined,
-          userId: item.user_id || undefined,
-          key: item.key,
-        };
-        const cacheKey = this.generateKey(storageKey);
-        this.setCachedData(cacheKey, item.data);
-      }
-    } catch (error) {
-      console.warn('Sync scope error:', error);
     }
   }
 }

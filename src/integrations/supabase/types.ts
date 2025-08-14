@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_storage: {
+        Row: {
+          created_at: string | null
+          data: Json
+          entreprise_key: string | null
+          guild_id: string | null
+          id: string
+          key: string
+          scope: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data?: Json
+          entreprise_key?: string | null
+          guild_id?: string | null
+          id?: string
+          key: string
+          scope: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json
+          entreprise_key?: string | null
+          guild_id?: string | null
+          id?: string
+          key?: string
+          scope?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       archives: {
         Row: {
           created_at: string

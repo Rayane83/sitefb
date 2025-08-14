@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { configRepo } from "@/lib/configRepo";
+import { StaffDotationViewer } from "@/components/StaffDotationViewer";
 
 interface StaffConfigProps {
   guildId: string;
@@ -37,6 +38,7 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const [blanchimentEnabled, setBlanchimentEnabled] = useState(false);
+  const [blanchimentGlobalPercs, setBlanchimentGlobalPercs] = useState({ percEntreprise: 15, percGroupe: 80 });
 
   const scope = useMemo(() => (selectedEntreprise ? `${guildId}:${selectedEntreprise}` : guildId), [guildId, selectedEntreprise]);
 
@@ -165,13 +167,30 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     ]);
   };
 
-  // Charger l'état de blanchiment pour l'entreprise sélectionnée
+  // Charger l'état de blanchiment pour l'entreprise sélectionnée et les pourcentages globaux
   useEffect(() => {
     let alive = true;
     async function loadBlanchiment() {
-      if (!scope) return;
+      if (!guildId) return;
       try {
-        if (!selectedEntreprise) { setBlanchimentEnabled(false); return; }
+        // Charger les pourcentages globaux
+        const { data: global, error: globalErr } = await supabase
+          .from('blanchiment_global')
+          .select('*')
+          .eq('guild_id', guildId)
+          .maybeSingle();
+        if (!globalErr && global && alive) {
+          setBlanchimentGlobalPercs({
+            percEntreprise: Number(global.perc_entreprise) || 15,
+            percGroupe: Number(global.perc_groupe) || 80
+          });
+        }
+
+        // Charger l'état pour l'entreprise sélectionnée
+        if (!selectedEntreprise) { 
+          setBlanchimentEnabled(false); 
+          return; 
+        }
         const { data: s, error: e3 } = await supabase
           .from('blanchiment_settings')
           .select('enabled')
@@ -187,7 +206,7 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     }
     loadBlanchiment();
     return () => { alive = false; };
-  }, [scope]);
+  }, [guildId, selectedEntreprise]);
 
   const toNum = (s: string) => Number((s || '').replace(/[^\d,.-]+/g, '').replace(/\s/g, '').replace(',', '.')) || 0;
 
@@ -558,6 +577,77 @@ const saveAll = async () => {
         </CardContent>
       </Card>
 
+      {/* Configuration des pourcentages de blanchiment pour toutes les entreprises */}
+      <Card className="stat-card">
+        <CardHeader>
+          <CardTitle className="text-lg">Configuration globale du blanchiment</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm text-muted-foreground mb-4">
+            Ces pourcentages s'appliquent à toutes les entreprises utilisant les paramètres globaux.
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Pourcentage Entreprise (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={blanchimentGlobalPercs.percEntreprise}
+                onChange={(e) => setBlanchimentGlobalPercs(prev => ({
+                  ...prev,
+                  percEntreprise: Number(e.target.value) || 0
+                }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Pourcentage Groupe (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={blanchimentGlobalPercs.percGroupe}
+                onChange={(e) => setBlanchimentGlobalPercs(prev => ({
+                  ...prev,
+                  percGroupe: Number(e.target.value) || 0
+                }))}
+              />
+            </div>
+          </div>
+          
+          <Button
+            onClick={async () => {
+              try {
+                await supabase
+                  .from('blanchiment_global')
+                  .upsert({
+                    guild_id: guildId,
+                    perc_entreprise: blanchimentGlobalPercs.percEntreprise,
+                    perc_groupe: blanchimentGlobalPercs.percGroupe
+                  });
+                toast({
+                  title: 'Pourcentages sauvegardés',
+                  description: 'Configuration globale du blanchiment mise à jour'
+                });
+              } catch (error) {
+                toast({
+                  title: 'Erreur',
+                  description: handleApiError(error),
+                  variant: 'destructive'
+                });
+              }
+            }}
+            className="btn-discord"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Sauvegarder les pourcentages globaux
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Intégration BlanchimentToggle scoping entreprise */}
       <Card className="stat-card">
         <CardHeader>
@@ -571,6 +661,12 @@ const saveAll = async () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Viewer des fiches dotation pour le staff */}
+      <StaffDotationViewer 
+        guildId={guildId}
+        currentRole={currentRole}
+      />
 
       {error && (
         <div className="flex items-center space-x-2 text-destructive">

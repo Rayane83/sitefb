@@ -12,6 +12,7 @@ import { getUserGuildRoles, resolveRole, canAccessCompanyConfig, getEntrepriseFr
 import { ArrowLeft, Download, FileUp, Save, Shield, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { mockApi, handleApiError } from "@/lib/api";
+import { AdvancedSalaryCalculator } from "@/components/AdvancedSalaryCalculator";
 
 function useQuery() {
   const { search } = useLocation();
@@ -682,6 +683,12 @@ useEffect(() => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Calculateur de salaires avancé */}
+      <AdvancedSalaryCalculator 
+        entreprise={cfg.identification.label || 'Entreprise'}
+        currentRole={currentRole}
+      />
     </div>
   );
 }

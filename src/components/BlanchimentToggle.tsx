@@ -264,7 +264,7 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
         <h2 className="text-2xl font-bold">Blanchiment</h2>
         <div className="flex items-center gap-3">
           <Badge variant="outline">{entreprise}</Badge>
-          {!isStaffReadOnly && (
+          {!isStaffReadOnly && currentRole !== 'patron' && (
             state?.enabled ? (
               <Button onClick={() => handleToggle(false)} disabled={isSaving} variant="destructive">
                 {isSaving ? (
@@ -284,6 +284,11 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
                 Activer
               </Button>
             )
+          )}
+          {currentRole === 'patron' && (
+            <Badge variant="secondary" className="text-xs">
+              Contrôlé par le staff
+            </Badge>
           )}
         </div>
       </div>
@@ -331,34 +336,6 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
                   Export PDF
                 </Button>
 
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={async () => {
-                    try {
-                      await exportBlanchimentXLSX({
-                        rows,
-                        entreprise,
-                        percEntreprise: percEntrepriseEff,
-                        percGroupe: percGroupeEff,
-                        guildName: guildId
-                      });
-                      toast({
-                        title: 'Export Excel',
-                        description: 'Fichier Excel généré avec succès'
-                      });
-                    } catch (error) {
-                      toast({
-                        title: 'Erreur export Excel',
-                        description: String(error),
-                        variant: 'destructive'
-                      });
-                    }
-                  }}
-                >
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
-                  Export Excel
-                </Button>
               </div>
             </div>
             <div className="overflow-x-auto">

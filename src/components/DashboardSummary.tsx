@@ -151,6 +151,21 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
     return () => clearInterval(id);
   }, [currentRole]);
 
+  // Écoute les événements de synchronisation pour rafraîchir automatiquement
+  useEffect(() => {
+    const handleDataSync = (event: CustomEvent) => {
+      const { table } = event.detail;
+      // Rafraîchir si c'est une table qui affecte le dashboard
+      if (['dotation_reports', 'dotation_rows', 'enterprises', 'tax_brackets', 'periodic', 'focus'].includes(table)) {
+        console.log(`Rafraîchissement du dashboard suite à: ${table}`);
+        setRefreshTick((t) => t + 1);
+      }
+    };
+
+    window.addEventListener('data-sync', handleDataSync as EventListener);
+    return () => window.removeEventListener('data-sync', handleDataSync as EventListener);
+  }, []);
+
   const currentWeek = getISOWeek();
 
   if (isLoading) return null;

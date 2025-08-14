@@ -153,6 +153,42 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
     };
   }, [guildId, entreprise]);
 
+  // Écoute les événements de synchronisation pour rafraîchir automatiquement
+  useEffect(() => {
+    const handleDataSync = (event: CustomEvent) => {
+      const { table } = event.detail;
+      // Rafraîchir si c'est une table qui affecte les dotations
+      if (['dotation_reports', 'dotation_rows', 'periodic', 'focus'].includes(table)) {
+        console.log(`Rafraîchissement des dotations suite à: ${table}`);
+        // Refetch data
+        setIsLoading(true);
+        const fetchData = async () => {
+          if (!guildId) return;
+          setError(null);
+          try {
+            // Recharger les données de dotation
+            const { data: pend, error: ePend } = await supabase
+              .from('dotation_reports')
+              .select('id, created_at, solde_actuel, totals, employees_count')
+              .eq('guild_id', guildId)
+              .eq('entreprise_key', entreprise)
+              .is('archived_at', null);
+            if (ePend) throw ePend;
+            setPendingReports(pend || []);
+          } catch (err) {
+            setError(handleApiError(err));
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchData();
+      }
+    };
+
+    window.addEventListener('data-sync', handleDataSync as EventListener);
+    return () => window.removeEventListener('data-sync', handleDataSync as EventListener);
+  }, [guildId, entreprise]);
+
   const loadReport = async (id: string) => {
     setIsLoading(true);
     setError(null);

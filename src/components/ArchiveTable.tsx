@@ -132,6 +132,55 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
     }
   }, [guildId]);
 
+  // Écoute les événements de synchronisation pour rafraîchir automatiquement
+  useEffect(() => {
+    const handleDataSync = (event: CustomEvent) => {
+      const { table } = event.detail;
+      // Rafraîchir si c'est une table qui affecte les archives
+      if (['archives', 'enterprises', 'periodic', 'focus'].includes(table)) {
+        console.log(`Rafraîchissement des archives suite à: ${table}`);
+        // Refetch data
+        const fetchArchive = async () => {
+          if (!guildId) return;
+          setIsLoading(true);
+          setError(null);
+          try {
+            let query = supabase
+              .from('archives')
+              .select('*')
+              .eq('guild_id', guildId)
+              .order('created_at', { ascending: false });
+
+            if (currentRole !== 'staff' && currentRole !== 'dot' && entreprise && entreprise !== 'Aucune Entreprise') {
+              query = query.eq('entreprise_key', entreprise);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            setRows(data || []);
+
+            // Recharger aussi les entreprises
+            const { data: entData, error: entError } = await supabase
+              .from('enterprises')
+              .select('key, name')
+              .eq('guild_id', guildId);
+            
+            if (entError) throw entError;
+            setAllEntreprises(entData || []);
+          } catch (err) {
+            setError(handleApiError(err));
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchArchive();
+      }
+    };
+
+    window.addEventListener('data-sync', handleDataSync as EventListener);
+    return () => window.removeEventListener('data-sync', handleDataSync as EventListener);
+  }, [guildId, currentRole, entreprise]);
+
   const availableTypes = useMemo(() => {
     // Types standards + types trouvés dans les archives
     const standardTypes = ['dotation', 'facture', 'diplôme'];

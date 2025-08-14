@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,25 @@ const Index = () => {
   const guildRoles = useGuildRoles(guilds.selectedGuildId);
   
   // Synchronisation automatique des configurations
-  useConfigSync();
+  const { triggerDataRefresh } = useConfigSync();
+
+  // Debug: ajouter un listener pour voir les événements de sync
+  useEffect(() => {
+    const handleConfigSync = (event: CustomEvent) => {
+      console.log('Événement config-sync reçu:', event.detail);
+    };
+    const handleDataSync = (event: CustomEvent) => {
+      console.log('Événement data-sync reçu:', event.detail);
+    };
+
+    window.addEventListener('config-sync', handleConfigSync as EventListener);
+    window.addEventListener('data-sync', handleDataSync as EventListener);
+
+    return () => {
+      window.removeEventListener('config-sync', handleConfigSync as EventListener);
+      window.removeEventListener('data-sync', handleDataSync as EventListener);
+    };
+  }, []);
   
   // Local UI state
   const [activeTab, setActiveTab] = useState('dashboard');

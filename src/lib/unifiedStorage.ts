@@ -99,7 +99,7 @@ class UnifiedStorage {
 
     try {
       // Construire la requête avec des filtres
-      let query = (supabase as any)
+      let query = supabase
         .from('app_storage')
         .select('data')
         .eq('scope', storageKey.scope)
@@ -131,7 +131,7 @@ class UnifiedStorage {
         return null;
       }
 
-      const result = data?.data || null;
+      const result = data ? data.data as T : null;
       this.setCachedData(cacheKey, result);
       return result;
     } catch (error) {
@@ -165,14 +165,12 @@ class UnifiedStorage {
         entreprise_key: storageKey.entrepriseKey || null,
         user_id: storageKey.userId || userId || null,
         key: storageKey.key,
-        data: data
+        data: data as any
       };
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('app_storage')
-        .upsert(payload, { 
-          onConflict: 'scope,guild_id,entreprise_key,user_id,key'
-        });
+        .upsert(payload);
 
       if (error) {
         console.error('Unified storage save error:', error);
@@ -206,7 +204,7 @@ class UnifiedStorage {
     }
 
     try {
-      let query = (supabase as any)
+      let query = supabase
         .from('app_storage')
         .delete()
         .eq('scope', storageKey.scope)

@@ -1,7 +1,7 @@
 // Centralised repository for Discord configuration
-// NOTE: Uses Supabase when authenticated; falls back to localStorage otherwise.
+// NOTE: Uses unified storage system
 
-import { supabase } from "@/integrations/supabase/client";
+import { unifiedStorage } from './unifiedStorage';
 
 export type DiscordRoleMap = {
   staff?: string;
@@ -43,52 +43,29 @@ export type DiscordConfig = {
   superadmins?: SuperadminConfig;
 };
 
-const STORAGE_KEY = 'discord:config:v1';
-
-async function getSession() {
-  const { data } = await supabase.auth.getSession();
-  return data.session;
-}
-
 export const configRepo = {
   async get(): Promise<DiscordConfig> {
     try {
-      // Try Supabase first if authenticated
-      const session = await getSession();
-      if (session) {
-        const { data, error } = await supabase
-          .from('discord_config')
-          .select('data')
-          .eq('id', 'default')
-          .maybeSingle();
-        if (error) throw error;
-        return (data?.data as DiscordConfig) || {};
-      }
+      const config = await unifiedStorage.get<DiscordConfig>({
+        scope: 'global',
+        key: 'discord_config'
+      });
+      return config || {};
     } catch (e) {
-      // ignore and fallback
-      console.warn('configRepo.get supabase fallback:', e);
-    }
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return {};
-      return JSON.parse(raw);
-    } catch {
+      console.warn('configRepo.get error:', e);
       return {};
     }
   },
+  
   async save(cfg: DiscordConfig): Promise<void> {
     try {
-      const session = await getSession();
-      if (session) {
-        const { error } = await supabase
-          .from('discord_config')
-          .upsert({ id: 'default', data: cfg }, { onConflict: 'id' });
-        if (error) throw error;
-        return;
-      }
+      await unifiedStorage.set({
+        scope: 'global',
+        key: 'discord_config'
+      }, cfg);
     } catch (e) {
-      console.warn('configRepo.save supabase fallback:', e);
+      console.warn('configRepo.save error:', e);
+      throw e;
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
   },
 };

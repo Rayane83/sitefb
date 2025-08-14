@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
 import { handleApiError } from '@/lib/api';
 import { useDebounce } from '@/hooks';
+import { useGuildStorage } from '@/hooks/useUnifiedStorage';
 import { exportToXLSX } from '@/lib/export';
 import { 
   Search, 
@@ -60,10 +61,21 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [form, setForm] = useState<{ date: string; montant: number; description: string }>({ date: '', montant: 0, description: '' });
 
-  // Template d'export (Staff uniquement)
-  const [templateHeaders, setTemplateHeaders] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem(`archives:templateHeaders:${guildId}`) || '[]'); } catch { return []; }
-  });
+  // Template d'export (Staff uniquement) - utilisation du stockage unifié
+  const templateHeadersStorage = useGuildStorage<string[]>(
+    guildId, 
+    'archives_template_headers', 
+    []
+  );
+  
+  const [templateHeaders, setTemplateHeaders] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (templateHeadersStorage.value) {
+      setTemplateHeaders(templateHeadersStorage.value);
+    }
+  }, [templateHeadersStorage.value]);
+  
   const templateInputId = `template-upload-${guildId}`;
 
   useEffect(() => {
@@ -470,7 +482,7 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
       const hdrs: string[] = (rows?.[0] || []).map((x: any) => String(x));
       if (hdrs.length === 0) throw new Error('Aucune colonne détectée');
       setTemplateHeaders(hdrs);
-      localStorage.setItem(`archives:templateHeaders:${guildId}`, JSON.stringify(hdrs));
+      await templateHeadersStorage.save(hdrs);
       toast({ title: 'Template importé', description: `${hdrs.length} colonnes détectées.` });
     } catch (err) {
       console.error(err);

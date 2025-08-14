@@ -21,10 +21,12 @@ import {
   DollarSign
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useCompanyStorage } from '@/hooks/useUnifiedStorage';
 
 interface AdvancedSalaryCalculatorProps {
   entreprise: string;
   currentRole: string;
+  currentGuild: string;
 }
 
 interface SalaryRule {
@@ -68,7 +70,7 @@ interface CalculationResult {
   }[];
 }
 
-export function AdvancedSalaryCalculator({ entreprise, currentRole }: AdvancedSalaryCalculatorProps) {
+export function AdvancedSalaryCalculator({ entreprise, currentRole, currentGuild }: AdvancedSalaryCalculatorProps) {
   const [salaryRules, setSalaryRules] = useState<SalaryRule[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [calculations, setCalculations] = useState<CalculationResult[]>([]);
@@ -105,29 +107,32 @@ export function AdvancedSalaryCalculator({ entreprise, currentRole }: AdvancedSa
     }
   ];
 
-  useEffect(() => {
-    // Charger les règles depuis localStorage ou utiliser les règles par défaut
-    const savedRules = localStorage.getItem(`salary-rules-${entreprise}`);
-    if (savedRules) {
-      try {
-        setSalaryRules(JSON.parse(savedRules));
-      } catch {
-        setSalaryRules(defaultRules);
-      }
-    } else {
-      setSalaryRules(defaultRules);
-    }
+  // Stockage unifié pour les règles de salaire et employés
+  const salaryRulesStorage = useCompanyStorage(
+    currentGuild, 
+    entreprise, 
+    'salary_rules', 
+    defaultRules
+  );
+  
+  const employeesStorage = useCompanyStorage<Employee[]>(
+    currentGuild, 
+    entreprise, 
+    'employees', 
+    []
+  );
 
-    // Charger les employés d'exemple
-    const savedEmployees = localStorage.getItem(`employees-${entreprise}`);
-    if (savedEmployees) {
-      try {
-        setEmployees(JSON.parse(savedEmployees));
-      } catch {
-        setEmployees([]);
-      }
+  useEffect(() => {
+    if (salaryRulesStorage.value) {
+      setSalaryRules(salaryRulesStorage.value);
     }
-  }, [entreprise]);
+  }, [salaryRulesStorage.value]);
+
+  useEffect(() => {
+    if (employeesStorage.value) {
+      setEmployees(employeesStorage.value);
+    }
+  }, [employeesStorage.value]);
 
   const addRule = () => {
     const newRule: SalaryRule = {
@@ -247,13 +252,23 @@ export function AdvancedSalaryCalculator({ entreprise, currentRole }: AdvancedSa
     setCalculations(results);
   };
 
-  const saveConfiguration = () => {
-    localStorage.setItem(`salary-rules-${entreprise}`, JSON.stringify(salaryRules));
-    localStorage.setItem(`employees-${entreprise}`, JSON.stringify(employees));
-    toast({
-      title: 'Configuration sauvegardée',
-      description: 'Les règles de calcul ont été enregistrées'
-    });
+  const saveConfiguration = async () => {
+    try {
+      await Promise.all([
+        salaryRulesStorage.save(salaryRules),
+        employeesStorage.save(employees)
+      ]);
+      toast({
+        title: 'Configuration sauvegardée',
+        description: 'Les règles de calcul ont été enregistrées'
+      });
+    } catch (error) {
+      toast({
+        title: 'Erreur de sauvegarde',
+        description: 'Impossible de sauvegarder la configuration.',
+        variant: 'destructive'
+      });
+    }
   };
 
   if (!isPatron) {

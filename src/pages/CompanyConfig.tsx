@@ -13,6 +13,7 @@ import { ArrowLeft, Download, FileUp, Save, Shield, Plus, Trash2 } from "lucide-
 import { useToast } from "@/hooks/use-toast";
 import { mockApi, handleApiError } from "@/lib/api";
 import { AdvancedSalaryCalculator } from "@/components/AdvancedSalaryCalculator";
+import { useCompanyStorage } from "@/hooks/useUnifiedStorage";
 
 function useQuery() {
   const { search } = useLocation();
@@ -150,31 +151,45 @@ export default function CompanyConfigPage() {
   // Accès
   const hasAccess = canAccessCompanyConfig(currentRole);
 
-  const storageKey = `company-config:${guildId}:_`;
+  // Stockage unifié pour la configuration d'entreprise
+  const configStorage = useCompanyStorage<CompanyConfigData>(
+    guildId, 
+    '_', // entreprise key pour config générale 
+    'company_config',
+    { cfg: mergeCompanyConfig(defaultCompanyConfig), employees: [] }
+  );
 
-useEffect(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const data = JSON.parse(raw) as CompanyConfigData & { salaryPrimesPaliers?: Bracket[] };
-        const merged = mergeCompanyConfig(data.cfg);
-        setCfg(merged);
-        setEmployees(data.employees || []);
-        if (data.salaryPrimesPaliers) setSalaryPaliers(data.salaryPrimesPaliers);
-      } catch {
-        // En cas de données corrompues, on reste sur les valeurs par défaut
-        setCfg((prev)=> mergeCompanyConfig(prev));
-      }
-    } else {
-      // Pas de données, garantir les valeurs par défaut
-      setCfg((prev)=> mergeCompanyConfig(prev));
+  const salaryPaliersStorage = useCompanyStorage<Bracket[]>(
+    guildId,
+    '_',
+    'salary_paliers',
+    []
+  );
+
+  useEffect(() => {
+    if (configStorage.value) {
+      setCfg(mergeCompanyConfig(configStorage.value.cfg));
+      setEmployees(configStorage.value.employees || []);
     }
-  }, [storageKey]);
+  }, [configStorage.value]);
 
-  const saveLocal = () => {
-    const payload: any = { cfg, employees, salaryPrimesPaliers: salaryPaliers };
-    localStorage.setItem(storageKey, JSON.stringify(payload));
-    toast({ title: "Enregistré localement", description: "Configuration sauvegardée dans le navigateur." });
+  useEffect(() => {
+    if (salaryPaliersStorage.value) {
+      setSalaryPaliers(salaryPaliersStorage.value);
+    }
+  }, [salaryPaliersStorage.value]);
+
+  const saveLocal = async () => {
+    try {
+      const payload: CompanyConfigData = { cfg, employees };
+      await Promise.all([
+        configStorage.save(payload),
+        salaryPaliersStorage.save(salaryPaliers)
+      ]);
+      toast({ title: "Configuration sauvegardée localement" });
+    } catch (error) {
+      toast({ title: "Erreur lors de la sauvegarde", description: "Impossible de sauvegarder la configuration.", variant: "destructive" });
+    }
   };
 
   const exportJSON = () => {
@@ -688,6 +703,7 @@ useEffect(() => {
       <AdvancedSalaryCalculator 
         entreprise={cfg.identification.label || 'Entreprise'}
         currentRole={currentRole}
+        currentGuild={guildId}
       />
     </div>
   );

@@ -14,10 +14,12 @@ import {
   Calculator, 
   AlertCircle,
   Save,
-  Copy
+  Copy,
+  FileText
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
+import { exportBlanchimentToPDF } from '@/lib/export';
 
 interface BlanchimentToggleProps {
   guildId: string;
@@ -297,6 +299,26 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" onClick={addRow} disabled={isStaffReadOnly}>Ajouter une ligne</Button>
                 <Button size="sm" className="btn-discord" onClick={saveRows} disabled={isStaffReadOnly}>Sauvegarder</Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    exportBlanchimentToPDF({
+                      rows,
+                      entreprise,
+                      percEntreprise: percEntrepriseEff,
+                      percGroupe: percGroupeEff,
+                      guildName: guildId
+                    });
+                    toast({
+                      title: 'Export PDF',
+                      description: 'Blanchiment Suivi généré avec succès'
+                    });
+                  }}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Export PDF
+                </Button>
               </div>
             </div>
             <div className="overflow-x-auto">

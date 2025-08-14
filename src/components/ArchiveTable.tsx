@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
 import { handleApiError } from '@/lib/api';
 import { useDebounce } from '@/hooks';
+import { exportToXLSX } from '@/lib/export';
 import { 
   Search, 
   Archive, 
@@ -198,45 +199,32 @@ export function ArchiveTable({ guildId, currentRole, entreprise }: ArchiveTableP
   // Export Excel
   const exportToExcel = () => {
     try {
-      const headersForData = headers;
-      const data = filteredRows.map((row) => {
-        // Si un template est présent, suivre l'ordre et les intitulés du template
-        if (isStaffRole && templateHeaders.length) {
-          const obj: Record<string, any> = {};
-          for (const th of templateHeaders) {
-            const keyLower = th.toLowerCase();
-            // heuristiques simples de mapping
-            if (keyLower.includes('date')) obj[th] = row.date || row.created_at || '';
-            else if (keyLower.includes('montant')) obj[th] = row.montant ?? '';
-            else if (keyLower.includes('entreprise')) obj[th] = row.entreprise_key || entreprise || '';
-            else if (keyLower.includes('type')) obj[th] = row.type || '';
-            else if (keyLower.includes('statut')) obj[th] = row.statut || '';
-            else if (keyLower === 'id') obj[th] = row.id || '';
-            else obj[th] = '';
-          }
-          return obj;
-        }
-        // Sinon, export dynamique avec entêtes formatés
-        const obj: Record<string, any> = {};
-        headersForData.forEach((h) => {
-          const label = formatHeaderName(h);
-          let v = (row as any)[h];
-          if (v && typeof v === 'object') v = JSON.stringify(v);
-          obj[label] = v;
-        });
-        return obj;
-      });
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Archives');
       const date = new Date();
       const stamp = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-      const name = `archives_${entreprise || 'toutes'}_${guildId || 'guild'}_${stamp}.xlsx`;
-      XLSX.writeFile(wb, name);
-      toast({ title: 'Export Excel', description: templateHeaders.length ? 'Export avec template.' : 'Export généré.' });
+      const filename = `archives_${entreprise || 'toutes'}_${guildId || 'guild'}_${stamp}.xlsx`;
+      
+      const success = exportToXLSX(
+        filteredRows,
+        filename,
+        isStaffRole && templateHeaders.length > 0 ? templateHeaders : undefined,
+        'Archives'
+      );
+      
+      if (success) {
+        toast({ 
+          title: 'Export Excel', 
+          description: templateHeaders.length && isStaffRole ? 'Export avec template.' : 'Export généré.' 
+        });
+      } else {
+        throw new Error('Échec de l\'export');
+      }
     } catch (e) {
       console.error(e);
-      toast({ title: 'Erreur export', description: "Impossible de générer le fichier.", variant: 'destructive' as any });
+      toast({ 
+        title: 'Erreur export', 
+        description: "Impossible de générer le fichier.", 
+        variant: 'destructive' 
+      });
     }
   };
 

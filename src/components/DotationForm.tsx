@@ -15,10 +15,12 @@ import {
   Calculator,
   AlertCircle,
   Check,
-  Archive
+  Archive,
+  FileText
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
+import { exportDotationToPDF, parseClipboardDotationData } from '@/lib/export';
 
 interface DotationFormProps {
   guildId: string;
@@ -469,10 +471,11 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
   // Envoyer aux archives
   const handleSendToArchive = async () => {
     if (!dotationData) return;
+    setIsSaving(true);
     try {
       const entry = {
         date: new Date().toISOString(),
-        type: 'Dotation',
+        type: 'dotation',
         entreprise,
         statut: 'En attente',
         payload: {
@@ -491,6 +494,7 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
         payload: entry.payload as any,
         statut: entry.statut,
         date: entry.date,
+        montant: totalSalaires + totalPrimes
       });
       if (archErr) throw archErr;
 
@@ -906,6 +910,28 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
         >
           <Archive className="w-4 h-4 mr-2" />
           Envoyer aux archives
+        </Button>
+
+        <Button
+          onClick={() => {
+            exportDotationToPDF({
+              rows: dotationData.rows,
+              soldeActuel: dotationData.soldeActuel,
+              totals: { totalCA, totalSalaires, totalPrimes, totalExpenses, totalWithdrawals },
+              limits: { maxSalaireEmp, maxPrimeEmp, maxSalairePat, maxPrimePat },
+              paliers,
+              entreprise,
+              employeesCount: dotationData.rows.length
+            });
+            toast({
+              title: 'Export PDF',
+              description: 'Fiche Impôt générée avec succès'
+            });
+          }}
+          variant="outline"
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Export PDF Fiche Impôt
         </Button>
 
       </div>

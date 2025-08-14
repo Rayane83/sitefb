@@ -1,5 +1,5 @@
 /**
- * Système de stockage unifié simplifié pour toutes les sessions
+ * Système de stockage unifié pour toutes les sessions
  * Utilise Supabase comme source de vérité avec cache localStorage intelligent
  */
 
@@ -13,18 +13,6 @@ export interface StorageKey {
   entrepriseKey?: string;
   userId?: string;
   key: string;
-}
-
-export interface StorageItem<T = any> {
-  id?: string;
-  scope: StorageScope;
-  guild_id?: string | null;
-  entreprise_key?: string | null;
-  user_id?: string | null;
-  key: string;
-  data: T;
-  created_at?: string;
-  updated_at?: string;
 }
 
 class UnifiedStorage {
@@ -110,35 +98,40 @@ class UnifiedStorage {
     }
 
     try {
-      // Utiliser une requête SQL dynamique pour contourner les types TypeScript
-      const query = `
-        SELECT data 
-        FROM app_storage 
-        WHERE scope = $1 
-          AND key = $2
-          AND ($3::text IS NULL OR guild_id = $3)
-          AND ($4::text IS NULL OR entreprise_key = $4)
-          AND ($5::uuid IS NULL OR user_id = $5)
-        LIMIT 1
-      `;
-      
-      const { data, error } = await supabase.rpc('execute_sql', {
-        query,
-        params: [
-          storageKey.scope,
-          storageKey.key,
-          storageKey.guildId || null,
-          storageKey.entrepriseKey || null,
-          storageKey.userId || null
-        ]
-      });
+      // Construire la requête avec des filtres
+      let query = (supabase as any)
+        .from('app_storage')
+        .select('data')
+        .eq('scope', storageKey.scope)
+        .eq('key', storageKey.key);
 
+      // Ajouter les filtres conditionnels
+      if (storageKey.guildId) {
+        query = query.eq('guild_id', storageKey.guildId);
+      } else {
+        query = query.is('guild_id', null);
+      }
+
+      if (storageKey.entrepriseKey) {
+        query = query.eq('entreprise_key', storageKey.entrepriseKey);
+      } else {
+        query = query.is('entreprise_key', null);
+      }
+
+      if (storageKey.userId) {
+        query = query.eq('user_id', storageKey.userId);
+      } else {
+        query = query.is('user_id', null);
+      }
+
+      const { data, error } = await query.maybeSingle();
+      
       if (error) {
-        console.warn('Storage RPC error:', error);
+        console.warn('Unified storage error:', error);
         return null;
       }
 
-      const result = data?.[0]?.data || null;
+      const result = data?.data || null;
       this.setCachedData(cacheKey, result);
       return result;
     } catch (error) {
@@ -166,18 +159,23 @@ class UnifiedStorage {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
 
-      // Utiliser RPC pour l'UPSERT
-      const { error } = await supabase.rpc('upsert_app_storage', {
-        p_scope: storageKey.scope,
-        p_guild_id: storageKey.guildId || null,
-        p_entreprise_key: storageKey.entrepriseKey || null,
-        p_user_id: storageKey.userId || userId || null,
-        p_key: storageKey.key,
-        p_data: data
-      });
+      const payload = {
+        scope: storageKey.scope,
+        guild_id: storageKey.guildId || null,
+        entreprise_key: storageKey.entrepriseKey || null,
+        user_id: storageKey.userId || userId || null,
+        key: storageKey.key,
+        data: data
+      };
+
+      const { error } = await (supabase as any)
+        .from('app_storage')
+        .upsert(payload, { 
+          onConflict: 'scope,guild_id,entreprise_key,user_id,key'
+        });
 
       if (error) {
-        console.error('Storage RPC save error:', error);
+        console.error('Unified storage save error:', error);
         return false;
       }
 
@@ -204,20 +202,38 @@ class UnifiedStorage {
     localStorage.removeItem(`${this.CACHE_PREFIX}${cacheKey}`);
 
     if (!(await this.isAuthenticated())) {
-      return true; // Considéré comme réussi si seulement en cache
+      return true;
     }
 
     try {
-      const { error } = await supabase.rpc('delete_app_storage', {
-        p_scope: storageKey.scope,
-        p_guild_id: storageKey.guildId || null,
-        p_entreprise_key: storageKey.entrepriseKey || null,
-        p_user_id: storageKey.userId || null,
-        p_key: storageKey.key
-      });
+      let query = (supabase as any)
+        .from('app_storage')
+        .delete()
+        .eq('scope', storageKey.scope)
+        .eq('key', storageKey.key);
+
+      if (storageKey.guildId) {
+        query = query.eq('guild_id', storageKey.guildId);
+      } else {
+        query = query.is('guild_id', null);
+      }
+
+      if (storageKey.entrepriseKey) {
+        query = query.eq('entreprise_key', storageKey.entrepriseKey);
+      } else {
+        query = query.is('entreprise_key', null);
+      }
+
+      if (storageKey.userId) {
+        query = query.eq('user_id', storageKey.userId);
+      } else {
+        query = query.is('user_id', null);
+      }
+
+      const { error } = await query;
       
       if (error) {
-        console.error('Storage RPC delete error:', error);
+        console.error('Unified storage delete error:', error);
         return false;
       }
 

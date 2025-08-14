@@ -488,6 +488,7 @@ export function generatePDFFromHTML(htmlContent: string, filename: string): Prom
     } catch (error) {
       reject(error);
     }
+  });
 }
 
 // Legacy export function for compatibility

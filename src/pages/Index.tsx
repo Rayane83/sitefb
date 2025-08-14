@@ -18,6 +18,7 @@ import StaffConfig from '@/components/StaffConfig';
 
 // Hooks
 import { useAuth, useGuilds, useGuildRoles } from '@/hooks';
+import { useConfigSync } from '@/hooks/useConfigSync';
 
 // Utils
 import { 
@@ -53,6 +54,9 @@ const Index = () => {
   const auth = useAuth();
   const guilds = useGuilds();
   const guildRoles = useGuildRoles(guilds.selectedGuildId);
+  
+  // Synchronisation automatique des configurations
+  useConfigSync();
   
   // Local UI state
   const [activeTab, setActiveTab] = useState('dashboard');

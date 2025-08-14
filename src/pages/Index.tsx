@@ -283,7 +283,7 @@ const Index = () => {
               <DashboardSummary 
                 guildId={guilds.selectedGuildId} 
                 currentRole={guildRoles.currentRole} 
-                entreprise={currentEntreprise} 
+                entreprise={guildRoles.entreprise} 
               />
             </TabsContent>
 

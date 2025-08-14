@@ -15,11 +15,13 @@ import {
   AlertCircle,
   Save,
   Copy,
-  FileText
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
-import { exportBlanchimentToPDF } from '@/lib/export';
+import { exportBlanchimentToPDF } from '@/lib/pdfExport';
+import { exportBlanchimentXLSX } from '@/lib/export';
 
 interface BlanchimentToggleProps {
   guildId: string;
@@ -299,25 +301,63 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" onClick={addRow} disabled={isStaffReadOnly}>Ajouter une ligne</Button>
                 <Button size="sm" className="btn-discord" onClick={saveRows} disabled={isStaffReadOnly}>Sauvegarder</Button>
+                
                 <Button 
                   size="sm" 
                   variant="outline" 
-                  onClick={() => {
-                    exportBlanchimentToPDF({
-                      rows,
-                      entreprise,
-                      percEntreprise: percEntrepriseEff,
-                      percGroupe: percGroupeEff,
-                      guildName: guildId
-                    });
-                    toast({
-                      title: 'Export PDF',
-                      description: 'Blanchiment Suivi généré avec succès'
-                    });
+                  onClick={async () => {
+                    try {
+                      await exportBlanchimentToPDF({
+                        rows,
+                        entreprise,
+                        percEntreprise: percEntrepriseEff,
+                        percGroupe: percGroupeEff,
+                        guildName: guildId
+                      });
+                      toast({
+                        title: 'Export PDF',
+                        description: 'Blanchiment Suivi généré avec succès'
+                      });
+                    } catch (error) {
+                      toast({
+                        title: 'Erreur export PDF',
+                        description: String(error),
+                        variant: 'destructive'
+                      });
+                    }
                   }}
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Export PDF
+                </Button>
+
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={async () => {
+                    try {
+                      await exportBlanchimentXLSX({
+                        rows,
+                        entreprise,
+                        percEntreprise: percEntrepriseEff,
+                        percGroupe: percGroupeEff,
+                        guildName: guildId
+                      });
+                      toast({
+                        title: 'Export Excel',
+                        description: 'Fichier Excel généré avec succès'
+                      });
+                    } catch (error) {
+                      toast({
+                        title: 'Erreur export Excel',
+                        description: String(error),
+                        variant: 'destructive'
+                      });
+                    }
+                  }}
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  Export Excel
                 </Button>
               </div>
             </div>

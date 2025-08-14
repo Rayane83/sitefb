@@ -16,11 +16,13 @@ import {
   AlertCircle,
   Check,
   Archive,
-  FileText
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
-import { exportDotationToPDF, parseClipboardDotationData } from '@/lib/export';
+import { exportDotationToPDF } from '@/lib/pdfExport';
+import { exportDotationXLSX, parseClipboardDotationData } from '@/lib/export';
 
 interface DotationFormProps {
   guildId: string;
@@ -913,25 +915,67 @@ export function DotationForm({ guildId, entreprise, currentRole }: DotationFormP
         </Button>
 
         <Button
-          onClick={() => {
-            exportDotationToPDF({
-              rows: dotationData.rows,
-              soldeActuel: dotationData.soldeActuel,
-              totals: { totalCA, totalSalaires, totalPrimes, totalExpenses, totalWithdrawals },
-              limits: { maxSalaireEmp, maxPrimeEmp, maxSalairePat, maxPrimePat },
-              paliers,
-              entreprise,
-              employeesCount: dotationData.rows.length
-            });
-            toast({
-              title: 'Export PDF',
-              description: 'Fiche Impôt générée avec succès'
-            });
+          onClick={async () => {
+            try {
+              await exportDotationToPDF({
+                rows: dotationData.rows,
+                soldeActuel: dotationData.soldeActuel,
+                totals: { totalCA, totalSalaires, totalPrimes, totalExpenses, totalWithdrawals },
+                limits: { maxSalaireEmp, maxPrimeEmp, maxSalairePat, maxPrimePat },
+                paliers,
+                entreprise,
+                employeesCount: dotationData.rows.length,
+                expenses: expenses.map(e => ({ date: e.date, justificatif: e.label, montant: e.amount })),
+                withdrawals: withdrawals.map(w => ({ date: w.date, justificatif: w.label, montant: w.amount }))
+              });
+              toast({
+                title: 'Export PDF',
+                description: 'Fiche Impôt générée avec succès'
+              });
+            } catch (error) {
+              toast({
+                title: 'Erreur export PDF',
+                description: String(error),
+                variant: 'destructive'
+              });
+            }
           }}
           variant="outline"
         >
           <FileText className="w-4 h-4 mr-2" />
           Export PDF Fiche Impôt
+        </Button>
+
+        <Button
+          onClick={async () => {
+            try {
+              await exportDotationXLSX({
+                rows: dotationData.rows,
+                soldeActuel: dotationData.soldeActuel,
+                totals: { totalCA, totalSalaires, totalPrimes, totalExpenses, totalWithdrawals },
+                limits: { maxSalaireEmp, maxPrimeEmp, maxSalairePat, maxPrimePat },
+                paliers,
+                entreprise,
+                employeesCount: dotationData.rows.length,
+                expenses: expenses.map(e => ({ date: e.date, justificatif: e.label, montant: e.amount })),
+                withdrawals: withdrawals.map(w => ({ date: w.date, justificatif: w.label, montant: w.amount }))
+              });
+              toast({
+                title: 'Export Excel',
+                description: 'Fichier Excel généré avec succès'
+              });
+            } catch (error) {
+              toast({
+                title: 'Erreur export Excel',
+                description: String(error),
+                variant: 'destructive'
+              });
+            }
+          }}
+          variant="outline"
+        >
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Export Excel
         </Button>
 
       </div>

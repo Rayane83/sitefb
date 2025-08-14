@@ -291,7 +291,7 @@ const Index = () => {
               <RoleGate allow={canAccessDotation} currentRole={guildRoles.currentRole}>
                 <DotationForm 
                   guildId={guilds.selectedGuildId} 
-                  entreprise={currentEntreprise}
+                  entreprise={guildRoles.entreprise}
                   currentRole={getRoleDisplayName(guildRoles.currentRole)}
                 />
               </RoleGate>
@@ -301,7 +301,7 @@ const Index = () => {
               <RoleGate allow={canAccessImpot} currentRole={guildRoles.currentRole}>
                 <ImpotForm 
                   guildId={guilds.selectedGuildId} 
-                  entreprise={currentEntreprise} 
+                  entreprise={guildRoles.entreprise} 
                   currentRole={guildRoles.currentRole} 
                 />
               </RoleGate>
@@ -311,7 +311,7 @@ const Index = () => {
               <RoleGate allow={canAccessBlanchiment} currentRole={guildRoles.currentRole}>
                 <BlanchimentToggle 
                   guildId={guilds.selectedGuildId}
-                  entreprise={currentEntreprise}
+                  entreprise={guildRoles.entreprise}
                   currentRole={getRoleDisplayName(guildRoles.currentRole)}
                 />
               </RoleGate>
@@ -321,7 +321,7 @@ const Index = () => {
               <RoleGate allow={isDot} currentRole={guildRoles.currentRole}>
                 <DocsUpload 
                   guildId={guilds.selectedGuildId} 
-                  entreprise={currentEntreprise} 
+                  entreprise={guildRoles.entreprise} 
                   role={guildRoles.currentRole} 
                 />
               </RoleGate>
@@ -331,7 +331,7 @@ const Index = () => {
               <ArchiveTable 
                 guildId={guilds.selectedGuildId}
                 currentRole={getRoleDisplayName(guildRoles.currentRole)}
-                entreprise={currentEntreprise}
+                entreprise={guildRoles.entreprise}
               />
             </TabsContent>
 

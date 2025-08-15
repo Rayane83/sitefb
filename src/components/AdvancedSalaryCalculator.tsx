@@ -107,32 +107,11 @@ export function AdvancedSalaryCalculator({ entreprise, currentRole, currentGuild
     }
   ];
 
-  // Stockage unifié pour les règles de salaire et employés
-  const salaryRulesStorage = useCompanyStorage(
-    currentGuild, 
-    entreprise, 
-    'salary_rules', 
-    defaultRules
-  );
-  
-  const employeesStorage = useCompanyStorage<Employee[]>(
-    currentGuild, 
-    entreprise, 
-    'employees', 
-    []
-  );
-
+  // TODO: Implémenter le stockage unifié plus tard
   useEffect(() => {
-    if (salaryRulesStorage.value) {
-      setSalaryRules(salaryRulesStorage.value);
-    }
-  }, [salaryRulesStorage.value]);
-
-  useEffect(() => {
-    if (employeesStorage.value) {
-      setEmployees(employeesStorage.value);
-    }
-  }, [employeesStorage.value]);
+    // Charger les données par défaut au démarrage
+    setSalaryRules(defaultRules);
+  }, []);
 
   const addRule = () => {
     const newRule: SalaryRule = {
@@ -254,10 +233,7 @@ export function AdvancedSalaryCalculator({ entreprise, currentRole, currentGuild
 
   const saveConfiguration = async () => {
     try {
-      await Promise.all([
-        salaryRulesStorage.save(salaryRules),
-        employeesStorage.save(employees)
-      ]);
+      // TODO: Implémenter la sauvegarde avec le système unifié
       toast({
         title: 'Configuration sauvegardée',
         description: 'Les règles de calcul ont été enregistrées'

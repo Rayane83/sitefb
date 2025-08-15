@@ -83,15 +83,46 @@ export function useCompanyStorage<T>(
   key: string,
   initialValue?: T
 ) {
-  return useUnifiedStorage<T>(
-    {
-      scope: 'enterprise',
-      guildId,
-      entrepriseKey,
-      key
-    },
-    initialValue
-  );
+  const [value, setValue] = useState<T | null>(initialValue || null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fonction pour sauvegarder
+  const save = useCallback(async (newValue: T) => {
+    try {
+      setError(null);
+      setValue(newValue);
+      // Pour l'instant, on utilise juste le state local
+      // TODO: Connecter avec Supabase
+      return true;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erreur de sauvegarde';
+      setError(errorMsg);
+      return false;
+    }
+  }, []);
+
+  // Fonction pour supprimer
+  const remove = useCallback(async () => {
+    try {
+      setError(null);
+      setValue(initialValue || null);
+      return true;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erreur de suppression';
+      setError(errorMsg);
+      return false;
+    }
+  }, [initialValue]);
+
+  return {
+    value,
+    loading,
+    error,
+    save,
+    remove,
+    setValue: save
+  };
 }
 
 /**

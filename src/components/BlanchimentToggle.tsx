@@ -37,6 +37,7 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
   
   const isStaff = currentRole.toLowerCase().includes('staff');
   const isStaffReadOnly = isStaff; // Staff en lecture seule
+  const isPatronRole = currentRole.toLowerCase().includes('patron');
   const [globalPercs, setGlobalPercs] = useState<{ percEntreprise: number; percGroupe: number } | null>(null);
   const [rows, setRows] = useState<any[]>([]);
   
@@ -264,7 +265,7 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
         <h2 className="text-2xl font-bold">Blanchiment</h2>
         <div className="flex items-center gap-3">
           <Badge variant="outline">{entreprise}</Badge>
-          {!isStaffReadOnly && currentRole !== 'patron' && (
+          {!isStaffReadOnly && !isPatronRole && (
             state?.enabled ? (
               <Button onClick={() => handleToggle(false)} disabled={isSaving} variant="destructive">
                 {isSaving ? (
@@ -285,7 +286,7 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
               </Button>
             )
           )}
-          {currentRole === 'patron' && (
+          {isPatronRole && (
             <Badge variant="secondary" className="text-xs">
               Contrôlé par le staff
             </Badge>

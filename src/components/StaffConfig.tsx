@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { configRepo } from "@/lib/configRepo";
 import { StaffDotationViewer } from "@/components/StaffDotationViewer";
+import { unifiedStorage } from "@/lib/unifiedStorage";
 
 interface StaffConfigProps {
   guildId: string;
@@ -39,6 +40,7 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
   const { toast } = useToast();
   const [blanchimentEnabled, setBlanchimentEnabled] = useState(false);
   const [blanchimentGlobalPercs, setBlanchimentGlobalPercs] = useState({ percEntreprise: 15, percGroupe: 80 });
+  const [salaryPercent, setSalaryPercent] = useState(0);
 
   const scope = useMemo(() => (selectedEntreprise ? `${guildId}:${selectedEntreprise}` : guildId), [guildId, selectedEntreprise]);
 
@@ -139,6 +141,27 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     return () => {
       alive = false;
     };
+  }, [guildId, selectedEntreprise]);
+
+  // Charger configuration du salaire pour l'entreprise sélectionnée
+  useEffect(() => {
+    let alive = true;
+    async function loadSalary() {
+      if (!guildId || !selectedEntreprise) return;
+      try {
+        const data = await unifiedStorage.get<{ percent: number }>({
+          scope: 'enterprise',
+          guildId,
+          entrepriseKey: selectedEntreprise,
+          key: 'salary_config'
+        });
+        if (alive && data?.percent !== undefined) {
+          setSalaryPercent(data.percent);
+        }
+      } catch {}
+    }
+    loadSalary();
+    return () => { alive = false; };
   }, [guildId, selectedEntreprise]);
 
   const addTaxRow = () => {
@@ -574,6 +597,51 @@ const saveAll = async () => {
             </table>
           </div>
           <Button onClick={addWealthRow} variant="outline"><Plus className="w-4 h-4 mr-2"/>Ajouter une tranche</Button>
+        </CardContent>
+      </Card>
+
+      {/* Configuration simple du système de salaire */}
+      <Card className="stat-card">
+        <CardHeader>
+          <CardTitle className="text-lg">Système de salaire</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Pourcentage du CA reversé en salaires (%)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              value={salaryPercent}
+              onChange={(e) => setSalaryPercent(Number(e.target.value) || 0)}
+            />
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await unifiedStorage.set({
+                  scope: 'enterprise',
+                  guildId,
+                  entrepriseKey: selectedEntreprise,
+                  key: 'salary_config'
+                }, { percent: salaryPercent });
+                toast({
+                  title: 'Configuration salaire sauvegardée',
+                  description: `Pourcentage fixé à ${salaryPercent}%`
+                });
+              } catch (error) {
+                toast({
+                  title: 'Erreur',
+                  description: handleApiError(error),
+                  variant: 'destructive'
+                });
+              }
+            }}
+            className="btn-discord"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Sauvegarder le pourcentage
+          </Button>
         </CardContent>
       </Card>
 

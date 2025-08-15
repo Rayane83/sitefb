@@ -272,6 +272,31 @@ export function SystemDiagnostic() {
         });
       }
 
+      // Test 8: Latence Supabase
+      updateProgress(98);
+      try {
+        const start = performance.now();
+        const { error } = await supabase.from('enterprises').select('id').limit(1);
+        if (error) throw error;
+        const duration = Math.round(performance.now() - start);
+        addResult({
+          category: 'Performance',
+          name: 'Latence Supabase',
+          status: duration < 1500 ? 'success' : 'warning',
+          message: `Requête en ${duration} ms`,
+          timestamp: new Date(),
+        });
+      } catch (e) {
+        addResult({
+          category: 'Performance',
+          name: 'Latence Supabase',
+          status: 'error',
+          message: 'Impossible de mesurer la latence',
+          details: [e instanceof Error ? e.message : 'Erreur inconnue'],
+          timestamp: new Date(),
+        });
+      }
+
       updateProgress(100);
     } finally {
       setIsRunning(false);

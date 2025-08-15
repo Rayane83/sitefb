@@ -14,6 +14,7 @@ import {
   Calendar,
   AlertCircle 
 } from 'lucide-react';
+import { SystemDiagnostic } from '@/components/SystemDiagnostic';
 import type { Role } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -196,6 +197,7 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Dashboard</h2>
         <div className="flex items-center gap-3">
+          <SystemDiagnostic />
           {(currentRole === 'staff' || currentRole === 'dot') && (
             <>
               <Select value={selectedEntKey} onValueChange={setSelectedEntKey}>

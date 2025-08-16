@@ -40,23 +40,13 @@ class UnifiedStorage {
   }
 
   /**
-   * Récupère les données du cache localStorage
+   * Récupère les données du cache mémoire uniquement
    */
   private getCachedData<T>(key: string): T | null {
     try {
       const cached = this.cache.get(key);
       if (cached && Date.now() - cached.timestamp < cached.ttl) {
         return cached.data;
-      }
-      
-      // Fallback localStorage pour les données critiques
-      const localKey = `${this.CACHE_PREFIX}${key}`;
-      const stored = localStorage.getItem(localKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Date.now() - parsed.timestamp < this.DEFAULT_TTL) {
-          return parsed.data;
-        }
       }
     } catch (error) {
       console.warn('Error reading cached data:', error);
@@ -65,21 +55,11 @@ class UnifiedStorage {
   }
 
   /**
-   * Met en cache les données
+   * Met en cache les données (mémoire uniquement)
    */
   private setCachedData<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
     try {
       this.cache.set(key, { data, timestamp: Date.now(), ttl });
-      
-      // Sauvegarde localStorage pour persistance cross-session
-      const localKey = `${this.CACHE_PREFIX}${key}`;
-      const payload = { data, timestamp: Date.now() };
-      localStorage.setItem(localKey, JSON.stringify(payload));
-      
-      // Déclencher événement de synchronisation pour autres onglets/sessions
-      window.dispatchEvent(new CustomEvent('unified-storage-sync', { 
-        detail: { key, data, timestamp: Date.now() } 
-      }));
     } catch (error) {
       console.warn('Error caching data:', error);
     }
@@ -200,9 +180,8 @@ class UnifiedStorage {
   async remove(storageKey: StorageKey): Promise<boolean> {
     const cacheKey = this.generateKey(storageKey);
 
-    // Supprimer du cache
+    // Supprimer du cache mémoire uniquement
     this.cache.delete(cacheKey);
-    localStorage.removeItem(`${this.CACHE_PREFIX}${cacheKey}`);
 
     if (!(await this.isAuthenticated())) {
       return true;
@@ -264,17 +243,10 @@ class UnifiedStorage {
   }
 
   /**
-   * Vide tout le cache (utile lors de la déconnexion)
+   * Vide tout le cache (mémoire uniquement)
    */
   clearAllCache(): void {
     this.cache.clear();
-    // Nettoyer localStorage aussi
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(this.CACHE_PREFIX)) {
-        localStorage.removeItem(key);
-      }
-    }
   }
 }
 
@@ -290,18 +262,5 @@ setInterval(() => {
 supabase.auth.onAuthStateChange((event) => {
   if (event === 'SIGNED_OUT') {
     unifiedStorage.clearAllCache();
-  }
-});
-
-// Synchronisation cross-session via localStorage events
-window.addEventListener('storage', (e) => {
-  if (e.key?.startsWith(unifiedStorage['CACHE_PREFIX'])) {
-    const key = e.key.replace(unifiedStorage['CACHE_PREFIX'], '');
-    if (e.newValue) {
-      const { data, timestamp } = JSON.parse(e.newValue);
-      unifiedStorage['cache'].set(key, { data, timestamp, ttl: unifiedStorage['DEFAULT_TTL'] });
-    } else {
-      unifiedStorage['cache'].delete(key);
-    }
   }
 });

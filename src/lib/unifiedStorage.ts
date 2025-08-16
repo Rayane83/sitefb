@@ -71,10 +71,15 @@ class UnifiedStorage {
     try {
       this.cache.set(key, { data, timestamp: Date.now(), ttl });
       
-      // Sauvegarde localStorage pour persistance
+      // Sauvegarde localStorage pour persistance cross-session
       const localKey = `${this.CACHE_PREFIX}${key}`;
       const payload = { data, timestamp: Date.now() };
       localStorage.setItem(localKey, JSON.stringify(payload));
+      
+      // Déclencher événement de synchronisation pour autres onglets/sessions
+      window.dispatchEvent(new CustomEvent('unified-storage-sync', { 
+        detail: { key, data, timestamp: Date.now() } 
+      }));
     } catch (error) {
       console.warn('Error caching data:', error);
     }
@@ -285,5 +290,18 @@ setInterval(() => {
 supabase.auth.onAuthStateChange((event) => {
   if (event === 'SIGNED_OUT') {
     unifiedStorage.clearAllCache();
+  }
+});
+
+// Synchronisation cross-session via localStorage events
+window.addEventListener('storage', (e) => {
+  if (e.key?.startsWith(unifiedStorage['CACHE_PREFIX'])) {
+    const key = e.key.replace(unifiedStorage['CACHE_PREFIX'], '');
+    if (e.newValue) {
+      const { data, timestamp } = JSON.parse(e.newValue);
+      unifiedStorage['cache'].set(key, { data, timestamp, ttl: unifiedStorage['DEFAULT_TTL'] });
+    } else {
+      unifiedStorage['cache'].delete(key);
+    }
   }
 });

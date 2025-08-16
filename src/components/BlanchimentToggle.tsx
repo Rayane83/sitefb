@@ -265,27 +265,6 @@ export function BlanchimentToggle({ guildId, entreprise, currentRole }: Blanchim
         <h2 className="text-2xl font-bold">Blanchiment</h2>
         <div className="flex items-center gap-3">
           <Badge variant="outline">{entreprise}</Badge>
-          {!isStaffReadOnly && !isPatronRole && (
-            state?.enabled ? (
-              <Button onClick={() => handleToggle(false)} disabled={isSaving} variant="destructive">
-                {isSaving ? (
-                  <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
-                ) : (
-                  <ShieldX className="w-4 h-4 mr-2" />
-                )}
-                Désactiver
-              </Button>
-            ) : (
-              <Button onClick={() => handleToggle(true)} disabled={isSaving} className="btn-discord">
-                {isSaving ? (
-                  <div className="loading-dots mr-2"><span></span><span></span><span></span></div>
-                ) : (
-                  <ShieldCheck className="w-4 h-4 mr-2" />
-                )}
-                Activer
-              </Button>
-            )
-          )}
           {isPatronRole && (
             <Badge variant="secondary" className="text-xs">
               Contrôlé par le staff

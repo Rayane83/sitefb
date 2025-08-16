@@ -164,6 +164,22 @@ export default function StaffConfig({ guildId, currentRole }: StaffConfigProps) 
     return () => { alive = false; };
   }, [guildId, selectedEntreprise]);
 
+  // Sauvegarder la configuration du salaire
+  const saveSalaryConfig = async () => {
+    if (!guildId || !selectedEntreprise) return;
+    try {
+      await unifiedStorage.set({
+        scope: 'enterprise',
+        guildId,
+        entrepriseKey: selectedEntreprise,
+        key: 'salary_config'
+      }, { percent: salaryPercent });
+      toast({ title: 'Configuration salaire sauvegardée', description: `${salaryPercent}% pour ${selectedEntreprise}` });
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder la configuration salaire', variant: 'destructive' });
+    }
+  };
+
   const addTaxRow = () => {
     setTaxBrackets((prev) => [
       ...prev,

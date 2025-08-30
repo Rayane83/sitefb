@@ -61,6 +61,9 @@ export function useSimpleAuth() {
       isLoading: false,
       isAuthenticated: true,
     });
+    
+    // Force page refresh to trigger the authentication state change
+    window.location.reload();
   }, []);
 
   const signOut = useCallback(() => {

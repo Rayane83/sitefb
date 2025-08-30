@@ -53,7 +53,7 @@ export function useSimpleAuth() {
     const mockUser: User = {
       id: 'dev_user_123',
       name: 'Utilisateur Test',
-      avatar: 'https://cdn.discordapp.com/avatars/123456789/avatar.png',
+      avatar: undefined, // Remove broken avatar URL
       discriminator: '1234'
     };
 

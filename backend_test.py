@@ -21,22 +21,22 @@ SAMPLE_DOTATION_DATA = {
     "entreprise": TEST_ENTERPRISE,
     "rows": [
         {
-            "employe": "Jean Dupont",
-            "grade": "Employé",
-            "ca": 15000,
-            "heures": 40,
+            "name": "Jean Dupont",
+            "run": 5000,
+            "facture": 8000,
+            "vente": 2000,
+            "ca_total": 15000,
             "salaire": 3200,
-            "prime": 800,
-            "total": 4000
+            "prime": 800
         },
         {
-            "employe": "Marie Martin",
-            "grade": "Patron",
-            "ca": 25000,
-            "heures": 45,
+            "name": "Marie Martin",
+            "run": 8000,
+            "facture": 12000,
+            "vente": 5000,
+            "ca_total": 25000,
             "salaire": 5500,
-            "prime": 1500,
-            "total": 7000
+            "prime": 1500
         }
     ],
     "expenses": 2500,

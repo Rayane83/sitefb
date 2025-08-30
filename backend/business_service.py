@@ -1,8 +1,8 @@
 import logging
 from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime
-from database import get_database
-from models import *
+from mysql_database import get_database
+from mysql_models import *
 
 logger = logging.getLogger(__name__)
 

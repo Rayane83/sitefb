@@ -40,7 +40,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Dependency to get database
-async def get_db() -> DatabaseService:
+async def get_db() -> MySQLDatabaseService:
     return get_database()
 
 # Health check endpoints

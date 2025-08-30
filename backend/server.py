@@ -104,7 +104,7 @@ async def discord_auth_callback(
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/auth/user/{discord_id}")
-async def get_user_by_discord_id(discord_id: str, db: DatabaseService = Depends(get_db)):
+async def get_user_by_discord_id(discord_id: str, db: MySQLDatabaseService = Depends(get_db)):
     """Get user by Discord ID"""
     user = await db.get_user_by_discord_id(discord_id)
     if not user:

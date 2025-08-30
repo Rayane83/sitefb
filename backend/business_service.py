@@ -21,63 +21,22 @@ class BusinessService:
     ) -> Dict[str, float]:
         """Calculate employee salary based on CA and configuration"""
         
-        # Get company configuration
-        company_config = await self.db.get_company_config(guild_id, entreprise)
-        if not company_config:
-            # Use default calculation
-            return {
-                "salaire_base": employee_ca * 0.05,  # 5% default
-                "prime": 0,
-                "salaire_total": employee_ca * 0.05
-            }
-        
-        salary_config = company_config.salaire
-        base_salary = 0
-        
-        # Calculate base salary
-        if salary_config.modes.get("caEmploye", True):
-            base_salary += employee_ca * (salary_config.pourcentage_ca / 100)
-        
-        if salary_config.modes.get("heuresService", False):
-            # Get grade-specific hourly rate
-            hourly_rate = 15  # default
-            if grade:
-                grade_rule = next((gr for gr in company_config.grade_rules if gr.grade == grade), None)
-                if grade_rule:
-                    hourly_rate = grade_rule.taux_horaire
-            base_salary += hours_worked * hourly_rate
-        
-        # Calculate prime based on CA thresholds
+        # Use default calculation for now
+        base_salary = employee_ca * 0.05  # 5% default
         prime = 0
-        if salary_config.prime_base.get("active", False):
-            prime += salary_config.prime_base.get("montant", 0)
         
-        # Add tier-based primes
-        for tier in salary_config.paliers_primes:
-            if employee_ca >= tier.seuil:
-                prime = tier.prime  # Use the highest applicable tier
+        # Simple tier-based primes
+        if employee_ca >= 50000:
+            prime = 1500
+        elif employee_ca >= 25000:
+            prime = 750
         
-        # Apply parameter-based bonuses/penalties
-        total_bonus = 0
-        for param_name, param in company_config.parametres.items():
-            if not param.actif:
-                continue
-            
-            # This would need actual employee data to calculate properly
-            # For now, we'll use a simplified calculation
-            for tier in param.paliers:
-                if employee_ca >= tier.seuil:
-                    if param.cumulatif:
-                        total_bonus += tier.bonus
-                    else:
-                        total_bonus = tier.bonus
-        
-        total_salary = base_salary + prime + total_bonus
+        total_salary = base_salary + prime
         
         return {
             "salaire_base": base_salary,
             "prime": prime,
-            "bonus": total_bonus,
+            "bonus": 0,
             "salaire_total": total_salary
         }
     

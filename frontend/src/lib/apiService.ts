@@ -1,7 +1,7 @@
 // Service API principal qui remplace les mocks
 import { apiGet, apiPost } from './api';
 
-const API_BASE_URL = import.meta.env.VITE_REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
+const API_BASE_URL = import.meta.env.VITE_REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
 
 export class ApiService {
   

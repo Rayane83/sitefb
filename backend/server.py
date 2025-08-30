@@ -9,8 +9,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 # Import our models and services
-from models import *
-from database import get_database, init_database, close_database, DatabaseService
+from mysql_models import *
+from mysql_database import get_database, init_database, close_database, MySQLDatabaseService
 from discord_service import discord_service
 from business_service import business_service
 

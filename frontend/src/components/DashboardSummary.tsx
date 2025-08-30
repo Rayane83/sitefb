@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DashboardSummary as IDashboardSummary } from '@/lib/types';
 import { formatCurrencyDollar, formatPercentage, getISOWeek } from '@/lib/fmt';
-import { handleApiError } from '@/lib/api';
+import { handleApiError, apiGet } from '@/lib/api';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { SystemDiagnostic } from '@/components/SystemDiagnostic';
 import type { Role } from '@/lib/types';
-import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface DashboardSummaryProps {
@@ -49,55 +48,74 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
       setIsLoading(true);
       setError(null);
       try {
-        // 1) Entreprises disponibles
-        const { data: ents, error: eEnt } = await supabase
-          .from('enterprises')
-          .select('key,name,enterprise_guild_id,employee_role_id')
-          .eq('guild_id', guildId)
-          .order('name', { ascending: true });
-        if (eEnt) throw eEnt;
-        const list = (ents || []).map((e:any)=> ({ id: e.key as string, name: e.name as string, guildId: e.enterprise_guild_id as string | undefined, employeeRoleId: e.employee_role_id as string | undefined }));
+        const API_BASE = import.meta.env.VITE_REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
+        
+        // 1) Get available enterprises
+        const enterprises = await apiGet(`${API_BASE}/api/enterprises/${guildId}`);
+        const list = (enterprises || []).map((e:any) => ({ 
+          id: e.key || e.id, 
+          name: e.name,
+          guildId: e.enterprise_guild_id,
+          employeeRoleId: e.employee_role_id 
+        }));
         setEnterpriseOptions(list);
 
         const role = (currentRole || 'employe').toLowerCase();
         const isStaffOrDot = role.includes('staff') || role.includes('dot');
         const targets = isStaffOrDot
           ? (selectedEntKey && selectedEntKey !== 'all' ? [selectedEntKey] : list.map((e) => e.id))
-          : (entreprise ? [entreprise] : list[0] ? [list[0].id] : []);
+          : (entreprise ? [entreprise] : list[0] ? [list[0].id] : ['Flashback Fa']);
 
         const results: any[] = [];
         for (const entKey of targets) {
-          // Dernier rapport
-          let rq = supabase
-            .from('dotation_reports')
-            .select('id, employees_count, totals, solde_actuel, created_at')
-            .eq('guild_id', guildId)
-            .eq('entreprise_key', entKey)
-            .order('created_at', { ascending: false })
-            .limit(1);
-          const { data: rRows, error: rErr } = await rq;
-          if (rErr) throw rErr;
-          const report = rRows && rRows[0];
-
-          let caBrut = 0, depenses = 0;
-          if (report) {
-            const { data: rows, error: rowsErr } = await supabase
-              .from('dotation_rows')
-              .select('ca_total, facture')
-              .eq('report_id', report.id);
-            if (rowsErr) throw rowsErr;
-            for (const r of rows || []) {
-              caBrut += Number(r.ca_total || 0);
-              depenses += Number(r.facture || 0);
+          try {
+            // Get dashboard summary from our API
+            const summary = await apiGet(`${API_BASE}/api/dashboard/summary/${guildId}?entreprise=${encodeURIComponent(entKey)}`);
+            
+            if (summary) {
+              results.push({
+                entreprise: entKey,
+                name: entKey,
+                ca_brut: summary.ca_brut || 0,
+                depenses: summary.depenses || 0,
+                benefice: summary.benefice || 0,
+                taux_imposition: summary.taux_imposition || 0,
+                montant_impots: summary.montant_impots || 0,
+                employee_count: summary.employee_count || 0,
+              });
             }
+          } catch (err) {
+            console.error(`Error loading summary for ${entKey}:`, err);
+            // Add default data for this enterprise
+            results.push({
+              entreprise: entKey,
+              name: entKey,
+              ca_brut: 0,
+              depenses: 0,
+              benefice: 0,
+              taux_imposition: 0,
+              montant_impots: 0,
+              employee_count: 0,
+            });
           }
+        }
 
-          const benefice = Math.max(0, caBrut - depenses);
-          let tauxImposition = 0;
-          const { data: brackets } = await supabase
-            .from('tax_brackets')
-            .select('min,max,taux')
-            .eq('guild_id', guildId)
+        if (alive) {
+          setItems(results);
+        }
+      } catch (err) {
+        if (alive) {
+          setError(handleApiError(err));
+        }
+      } finally {
+        if (alive) {
+          setIsLoading(false);
+        }
+      }
+    }
+    load();
+    return () => { alive = false; };
+  }, [guildId, currentRole, entreprise, selectedEntKey, refreshTick]);
             .eq('entreprise_key', entKey)
             .order('min', { ascending: true });
           if (brackets && brackets.length) {

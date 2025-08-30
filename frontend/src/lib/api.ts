@@ -2,7 +2,7 @@
 
 import { apiService } from './apiService';
 
-const API_BASE = import.meta.env.VITE_REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
+const API_BASE = import.meta.env.VITE_REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
 
 interface FetchOptions extends RequestInit {
   guildId?: string;

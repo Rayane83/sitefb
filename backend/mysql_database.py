@@ -38,7 +38,7 @@ class MySQLDatabaseService:
         """Initialize database tables"""
         async with self.async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("MySQL database tables initialized")
+        logger.info("Database tables initialized")
     
     async def close(self):
         """Close database connections"""

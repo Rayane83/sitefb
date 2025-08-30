@@ -9,14 +9,25 @@ from mysql_models import *
 logger = logging.getLogger(__name__)
 
 class MySQLDatabaseService:
-    def __init__(self, mysql_url: str):
-        # Create async engine for MySQL
-        self.async_engine = create_async_engine(
-            mysql_url.replace("mysql://", "mysql+aiomysql://"),
-            echo=False,
-            pool_pre_ping=True,
-            pool_recycle=3600
-        )
+    def __init__(self, database_url: str):
+        # Support both MySQL and SQLite URLs
+        if database_url.startswith("sqlite"):
+            # SQLite for development
+            self.async_engine = create_async_engine(
+                database_url,
+                echo=False,
+                pool_pre_ping=True
+            )
+        else:
+            # MySQL for production
+            mysql_url = database_url.replace("mysql://", "mysql+aiomysql://")
+            self.async_engine = create_async_engine(
+                mysql_url,
+                echo=False,
+                pool_pre_ping=True,
+                pool_recycle=3600
+            )
+        
         self.async_session = async_sessionmaker(
             self.async_engine, 
             class_=AsyncSession, 

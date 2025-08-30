@@ -17,7 +17,7 @@ import { DocsUpload } from '@/components/DocsUpload';
 import StaffConfig from '@/components/StaffConfig';
 
 // Hooks
-import { useAuth, useGuilds, useGuildRoles } from '@/hooks';
+import { useAuth, useGuilds, useGuildRoles } from '@/hooks/useSimpleHooks';
 import { useConfigSync } from '@/hooks/useConfigSync';
 
 // Utils

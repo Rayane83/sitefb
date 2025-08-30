@@ -146,7 +146,7 @@ async def get_employee_count(
     db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get employee count for an enterprise"""
-    count = await business_service.get_employee_count(guild_id, entreprise)
+    count = await business_service.get_employee_count(guild_id, entreprise, db)
     return {"count": count}
 
 # Dotation endpoints

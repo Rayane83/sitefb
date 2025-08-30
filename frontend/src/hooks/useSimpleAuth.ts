@@ -47,6 +47,8 @@ export function useSimpleAuth() {
   }, []);
 
   const signInWithDiscord = useCallback(() => {
+    console.log('Discord login triggered');
+    
     // For development, create a mock user
     const mockUser: User = {
       id: 'dev_user_123',
@@ -56,14 +58,13 @@ export function useSimpleAuth() {
     };
 
     localStorage.setItem('flashback_user', JSON.stringify(mockUser));
+    
+    // Update state immediately
     setAuthState({
       user: mockUser,
       isLoading: false,
       isAuthenticated: true,
     });
-    
-    // Force page refresh to trigger the authentication state change
-    window.location.reload();
   }, []);
 
   const signOut = useCallback(() => {

@@ -73,7 +73,7 @@ async def get_status_checks(db: MySQLDatabaseService = Depends(get_db)):
 async def discord_auth_callback(
     code: str = Form(...),
     redirect_uri: str = Form(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Handle Discord OAuth callback"""
     try:

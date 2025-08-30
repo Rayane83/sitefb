@@ -1,6 +1,6 @@
 // Utilitaires pour les appels API
 
-const API_BASE = 'http://51.75.200.221:8000';
+const API_BASE = import.meta.env.VITE_REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
 
 interface FetchOptions extends RequestInit {
   guildId?: string;

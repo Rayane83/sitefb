@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -5,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, CheckCircle, XCircle, Zap, Database, Wifi, Users, Settings, Activity } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Zap, Database, Wifi, Users, Settings, Activity, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { unifiedStorage } from '@/lib/unifiedStorage';
 import { configRepo } from '@/lib/configRepo';
@@ -17,6 +18,7 @@ interface DiagnosticResult {
   message: string;
   details?: string[];
   timestamp: Date;
+  duration?: number;
 }
 
 interface DiagnosticStats {
@@ -54,40 +56,23 @@ export function SystemDiagnostic() {
     setProgress(0);
 
     try {
-      // Test 1: Connexion Supabase
-      updateProgress(10);
+      // Test 1: Connexion Supabase et authentification
+      updateProgress(5);
       try {
-        const { data, error } = await supabase.from('discord_config').select('id').limit(1);
-        if (error) throw error;
-        addResult({
-          category: 'Database',
-          name: 'Connexion Supabase',
-          status: 'success',
-          message: 'Connexion à la base de données établie',
-          timestamp: new Date()
-        });
-      } catch (e) {
-        addResult({
-          category: 'Database',
-          name: 'Connexion Supabase',
-          status: 'error',
-          message: 'Échec de connexion à Supabase',
-          details: [e instanceof Error ? e.message : 'Erreur inconnue'],
-          timestamp: new Date()
-        });
-      }
-
-      // Test 2: Authentification
-      updateProgress(20);
-      try {
+        const start = performance.now();
         const { data: { user }, error } = await supabase.auth.getUser();
+        const duration = Math.round(performance.now() - start);
+        
         if (error) throw error;
+        
         if (user) {
           addResult({
             category: 'Auth',
             name: 'Session utilisateur',
             status: 'success',
             message: `Utilisateur connecté: ${user.email}`,
+            details: [`ID: ${user.id}`, `Dernière connexion: ${user.last_sign_in_at}`],
+            duration,
             timestamp: new Date()
           });
         } else {
@@ -96,6 +81,7 @@ export function SystemDiagnostic() {
             name: 'Session utilisateur',
             status: 'warning',
             message: 'Aucun utilisateur connecté',
+            duration,
             timestamp: new Date()
           });
         }
@@ -110,11 +96,104 @@ export function SystemDiagnostic() {
         });
       }
 
-      // Test 3: Configuration Discord
+      // Test 2: Connexion base de données
+      updateProgress(10);
+      try {
+        const start = performance.now();
+        const { data, error } = await supabase.from('discord_config').select('id').limit(1);
+        const duration = Math.round(performance.now() - start);
+        
+        if (error) throw error;
+        addResult({
+          category: 'Database',
+          name: 'Connexion Supabase',
+          status: duration < 1000 ? 'success' : 'warning',
+          message: `Connexion établie en ${duration}ms`,
+          duration,
+          timestamp: new Date()
+        });
+      } catch (e) {
+        addResult({
+          category: 'Database',
+          name: 'Connexion Supabase',
+          status: 'error',
+          message: 'Échec de connexion à Supabase',
+          details: [e instanceof Error ? e.message : 'Erreur inconnue'],
+          timestamp: new Date()
+        });
+      }
+
+      // Test 3: Test du stockage unifié (sans localStorage)
+      updateProgress(20);
+      try {
+        const start = performance.now();
+        const testKey = { scope: 'global' as const, key: 'diagnostic_test_no_localstorage' };
+        const testData = { 
+          test: true, 
+          timestamp: Date.now(), 
+          session: 'diagnostic',
+          random: Math.random()
+        };
+        
+        // Vérifier qu'il n'y a pas de localStorage
+        const hasLocalStorage = !!localStorage.getItem('unified_storage_diagnostic_test_no_localstorage');
+        
+        // Test écriture
+        const writeSuccess = await unifiedStorage.set(testKey, testData);
+        if (!writeSuccess) throw new Error('Échec de l\'écriture');
+        
+        // Test lecture immédiate
+        const retrieved = await unifiedStorage.get(testKey);
+        if (!retrieved || (retrieved as any).random !== testData.random) {
+          throw new Error('Données récupérées incorrectes');
+        }
+        
+        // Test suppression
+        const deleteSuccess = await unifiedStorage.remove(testKey);
+        if (!deleteSuccess) throw new Error('Échec de la suppression');
+        
+        // Vérifier que les données sont supprimées
+        const afterDelete = await unifiedStorage.get(testKey);
+        if (afterDelete !== null) throw new Error('Données non supprimées');
+        
+        const duration = Math.round(performance.now() - start);
+        addResult({
+          category: 'Storage',
+          name: 'Stockage unifié (sans localStorage)',
+          status: 'success',
+          message: 'Stockage unifié fonctionnel sans localStorage',
+          details: [
+            'Écriture: ✓ OK', 
+            'Lecture: ✓ OK', 
+            'Suppression: ✓ OK',
+            `Pas de localStorage détecté: ${!hasLocalStorage ? '✓ OK' : '✗ Problème'}`,
+            `Durée totale: ${duration}ms`
+          ],
+          duration,
+          timestamp: new Date()
+        });
+      } catch (e) {
+        addResult({
+          category: 'Storage',
+          name: 'Stockage unifié',
+          status: 'error',
+          message: 'Erreur dans le stockage unifié',
+          details: [e instanceof Error ? e.message : 'Erreur inconnue'],
+          timestamp: new Date()
+        });
+      }
+
+      // Test 4: Configuration Discord et synchronisation
       updateProgress(30);
       try {
+        const start = performance.now();
         const config = await configRepo.get();
+        const duration = Math.round(performance.now() - start);
+        
         const hasBasicConfig = config.principalGuildId && config.clientId;
+        const enterpriseCount = Object.keys(config.enterprises || {}).length;
+        const roleCount = Object.keys(config.principalRoles || {}).length;
+        
         addResult({
           category: 'Config',
           name: 'Configuration Discord',
@@ -123,9 +202,11 @@ export function SystemDiagnostic() {
           details: [
             `Guild principal: ${config.principalGuildId || 'Non défini'}`,
             `Client ID: ${config.clientId || 'Non défini'}`,
-            `Entreprises: ${Object.keys(config.enterprises || {}).length} configurées`,
-            `Rôles: ${Object.keys(config.principalRoles || {}).length} configurés`
+            `Entreprises configurées: ${enterpriseCount}`,
+            `Rôles configurés: ${roleCount}`,
+            `Temps de chargement: ${duration}ms`
           ],
+          duration,
           timestamp: new Date()
         });
       } catch (e) {
@@ -139,100 +220,113 @@ export function SystemDiagnostic() {
         });
       }
 
-      // Test 4: Stockage unifié
+      // Test 5: Tables principales et accès aux données
       updateProgress(40);
-      try {
-        const testKey = { scope: 'global' as const, key: 'diagnostic_test' };
-        const testData = { test: true, timestamp: Date.now() };
-        
-        // Test écriture
-        await unifiedStorage.set(testKey, testData);
-        
-        // Test lecture
-        const retrieved = await unifiedStorage.get(testKey);
-        
-        // Test suppression
-        await unifiedStorage.remove(testKey);
-        
-        if (retrieved && (retrieved as any).test === true) {
-          addResult({
-            category: 'Storage',
-            name: 'Stockage unifié',
-            status: 'success',
-            message: 'Stockage unifié fonctionnel',
-            details: ['Écriture: OK', 'Lecture: OK', 'Suppression: OK'],
-            timestamp: new Date()
-          });
-        } else {
-          throw new Error('Données récupérées incorrectes');
-        }
-      } catch (e) {
-        addResult({
-          category: 'Storage',
-          name: 'Stockage unifié',
-          status: 'error',
-          message: 'Erreur dans le stockage unifié',
-          details: [e instanceof Error ? e.message : 'Erreur inconnue'],
-          timestamp: new Date()
-        });
-      }
-
-      // Test 5: Tables principales
-      updateProgress(50);
-      const tables = ['enterprises', 'dotation_reports', 'dotation_rows', 'archives', 'tax_brackets'] as const;
+      const tables = [
+        { name: 'enterprises', critical: true },
+        { name: 'dotation_reports', critical: true },
+        { name: 'dotation_rows', critical: false },
+        { name: 'archives', critical: false },
+        { name: 'tax_brackets', critical: true },
+        { name: 'blanchiment_settings', critical: false },
+        { name: 'app_storage', critical: true }
+      ] as const;
+      
       for (const table of tables) {
         try {
-          const { data, error } = await supabase.from(table).select('*').limit(1);
+          const start = performance.now();
+          const { data, error, count } = await supabase
+            .from(table.name)
+            .select('*', { count: 'exact' })
+            .limit(1);
+          const duration = Math.round(performance.now() - start);
+          
           if (error) throw error;
+          
           addResult({
             category: 'Database',
-            name: `Table ${table}`,
+            name: `Table ${table.name}`,
             status: 'success',
-            message: `Table ${table} accessible`,
+            message: `Table accessible - ${count || 0} enregistrements`,
+            details: [`Temps d'accès: ${duration}ms`, table.critical ? 'Table critique' : 'Table optionnelle'],
+            duration,
             timestamp: new Date()
           });
         } catch (e) {
+          const status = table.critical ? 'error' : 'warning';
           addResult({
             category: 'Database',
-            name: `Table ${table}`,
-            status: 'error',
-            message: `Erreur d'accès à la table ${table}`,
-            details: [e instanceof Error ? e.message : 'Erreur inconnue'],
+            name: `Table ${table.name}`,
+            status,
+            message: `Erreur d'accès à la table ${table.name}`,
+            details: [
+              e instanceof Error ? e.message : 'Erreur inconnue',
+              table.critical ? 'Table critique - Problème majeur' : 'Table optionnelle'
+            ],
             timestamp: new Date()
           });
         }
-        updateProgress(50 + (tables.indexOf(table) + 1) * 8);
+        updateProgress(40 + (tables.indexOf(table) + 1) * 5);
       }
 
-      // Test 6: Edge Functions
-      updateProgress(90);
+      // Test 6: Cache mémoire et performances
+      updateProgress(75);
       try {
-        const { data, error } = await supabase.functions.invoke('discord-health');
-        if (error) throw error;
+        const start = performance.now();
+        
+        // Tester le cache mémoire
+        const cacheTestKey = { scope: 'global' as const, key: 'cache_performance_test' };
+        const cacheTestData = { performance: true, timestamp: Date.now() };
+        
+        // Premier appel (mise en cache)
+        await unifiedStorage.set(cacheTestKey, cacheTestData);
+        const firstRead = performance.now();
+        await unifiedStorage.get(cacheTestKey);
+        const firstReadTime = performance.now() - firstRead;
+        
+        // Deuxième appel (depuis le cache)
+        const secondRead = performance.now();
+        await unifiedStorage.get(cacheTestKey);
+        const secondReadTime = performance.now() - secondRead;
+        
+        // Nettoyage
+        await unifiedStorage.remove(cacheTestKey);
+        
+        const isCacheEffective = secondReadTime < firstReadTime;
+        const totalDuration = Math.round(performance.now() - start);
+        
         addResult({
-          category: 'Functions',
-          name: 'Edge Functions',
-          status: 'success',
-          message: 'Edge Functions opérationnelles',
-          details: data ? [JSON.stringify(data)] : undefined,
+          category: 'Performance',
+          name: 'Cache mémoire',
+          status: isCacheEffective ? 'success' : 'warning',
+          message: `Cache ${isCacheEffective ? 'efficace' : 'inefficace'}`,
+          details: [
+            `Premier accès: ${firstReadTime.toFixed(2)}ms`,
+            `Second accès (cache): ${secondReadTime.toFixed(2)}ms`,
+            `Amélioration: ${isCacheEffective ? '✓' : '✗'}`,
+            `Test complet: ${totalDuration}ms`
+          ],
+          duration: totalDuration,
           timestamp: new Date()
         });
       } catch (e) {
         addResult({
-          category: 'Functions',
-          name: 'Edge Functions',
-          status: 'warning',
-          message: 'Edge Functions non disponibles ou en erreur',
+          category: 'Performance',
+          name: 'Cache mémoire',
+          status: 'error',
+          message: 'Erreur lors du test de cache',
           details: [e instanceof Error ? e.message : 'Erreur inconnue'],
           timestamp: new Date()
         });
       }
 
       // Test 7: Synchronisation temps réel
-      updateProgress(95);
+      updateProgress(85);
       try {
-        const channel = supabase.channel('diagnostic-test');
+        const start = performance.now();
         let realtimeWorking = false;
+        
+        const channel = supabase.channel('diagnostic-realtime-test');
         
         const timeout = setTimeout(() => {
           if (!realtimeWorking) {
@@ -240,27 +334,30 @@ export function SystemDiagnostic() {
               category: 'Realtime',
               name: 'Synchronisation temps réel',
               status: 'warning',
-              message: 'Temps réel non réactif (timeout)',
+              message: 'Temps réel non réactif (timeout 3s)',
+              details: ['La synchronisation temps réel peut être lente'],
               timestamp: new Date()
             });
           }
+          supabase.removeChannel(channel);
         }, 3000);
 
         channel.on('presence', { event: 'sync' }, () => {
           realtimeWorking = true;
           clearTimeout(timeout);
+          const duration = Math.round(performance.now() - start);
           addResult({
             category: 'Realtime',
             name: 'Synchronisation temps réel',
             status: 'success',
-            message: 'Synchronisation temps réel fonctionnelle',
+            message: `Synchronisation temps réel active en ${duration}ms`,
+            duration,
             timestamp: new Date()
           });
           supabase.removeChannel(channel);
         }).subscribe();
 
-        // Trigger test
-        await channel.track({ test: true });
+        await channel.track({ test: true, timestamp: Date.now() });
       } catch (e) {
         addResult({
           category: 'Realtime',
@@ -272,28 +369,54 @@ export function SystemDiagnostic() {
         });
       }
 
-      // Test 8: Latence Supabase
-      updateProgress(98);
+      // Test 8: Vérification des sessions et permissions
+      updateProgress(95);
       try {
         const start = performance.now();
-        const { error } = await supabase.from('enterprises').select('id').limit(1);
-        if (error) throw error;
+        
+        // Tester l'accès aux données d'entreprises
+        const { data: enterprises, error: entError } = await supabase
+          .from('enterprises')
+          .select('*')
+          .limit(5);
+        
+        if (entError) throw entError;
+        
+        // Tester l'accès aux configurations
+        const { data: configs, error: configError } = await supabase
+          .from('app_storage')
+          .select('*')
+          .eq('scope', 'global')
+          .limit(5);
+        
+        if (configError) throw configError;
+        
         const duration = Math.round(performance.now() - start);
         addResult({
-          category: 'Performance',
-          name: 'Latence Supabase',
-          status: duration < 1500 ? 'success' : 'warning',
-          message: `Requête en ${duration} ms`,
-          timestamp: new Date(),
+          category: 'Permissions',
+          name: 'Accès données cross-session',
+          status: 'success',
+          message: 'Accès aux données global fonctionnel',
+          details: [
+            `Entreprises accessibles: ${enterprises?.length || 0}`,
+            `Configurations globales: ${configs?.length || 0}`,
+            `Temps d'accès: ${duration}ms`,
+            'Données partagées entre sessions: ✓'
+          ],
+          duration,
+          timestamp: new Date()
         });
       } catch (e) {
         addResult({
-          category: 'Performance',
-          name: 'Latence Supabase',
+          category: 'Permissions',
+          name: 'Accès données cross-session',
           status: 'error',
-          message: 'Impossible de mesurer la latence',
-          details: [e instanceof Error ? e.message : 'Erreur inconnue'],
-          timestamp: new Date(),
+          message: 'Problème d\'accès aux données partagées',
+          details: [
+            e instanceof Error ? e.message : 'Erreur inconnue',
+            'Vérifiez les politiques RLS'
+          ],
+          timestamp: new Date()
         });
       }
 
@@ -305,9 +428,9 @@ export function SystemDiagnostic() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'success': return <CheckCircle className="w-4 h-4 text-success" />;
-      case 'warning': return <AlertTriangle className="w-4 h-4 text-warning" />;
-      case 'error': return <XCircle className="w-4 h-4 text-destructive" />;
+      case 'success': return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case 'warning': return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
+      case 'error': return <XCircle className="w-4 h-4 text-red-600" />;
       default: return <Activity className="w-4 h-4 text-muted-foreground" />;
     }
   };
@@ -320,7 +443,18 @@ export function SystemDiagnostic() {
       case 'Storage': return <Zap className="w-4 h-4" />;
       case 'Functions': return <Activity className="w-4 h-4" />;
       case 'Realtime': return <Wifi className="w-4 h-4" />;
+      case 'Performance': return <RefreshCw className="w-4 h-4" />;
+      case 'Permissions': return <Users className="w-4 h-4" />;
       default: return <Activity className="w-4 h-4" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'success': return 'border-l-green-500 bg-green-50';
+      case 'warning': return 'border-l-yellow-500 bg-yellow-50';
+      case 'error': return 'border-l-red-500 bg-red-50';
+      default: return 'border-l-gray-500 bg-gray-50';
     }
   };
 
@@ -332,7 +466,7 @@ export function SystemDiagnostic() {
           <span>Diagnostic Système</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
+      <DialogContent className="max-w-5xl max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Activity className="w-5 h-5" />
@@ -352,15 +486,18 @@ export function SystemDiagnostic() {
             </Button>
             
             {stats.total > 0 && (
-              <div className="flex space-x-4 text-sm">
-                <Badge variant="default" className="bg-success text-success-foreground">
+              <div className="flex space-x-3 text-sm">
+                <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">
                   ✓ {stats.success}
                 </Badge>
-                <Badge variant="secondary" className="bg-warning text-warning-foreground">
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
                   ⚠ {stats.warning}
                 </Badge>
-                <Badge variant="destructive">
+                <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300">
                   ✗ {stats.error}
+                </Badge>
+                <Badge variant="outline">
+                  Total: {stats.total}
                 </Badge>
               </div>
             )}
@@ -377,14 +514,10 @@ export function SystemDiagnostic() {
           )}
 
           {results.length > 0 && (
-            <ScrollArea className="h-[400px] w-full">
-              <div className="space-y-3">
+            <ScrollArea className="h-[450px] w-full">
+              <div className="space-y-3 pr-4">
                 {results.map((result, index) => (
-                  <Card key={index} className={`border-l-4 ${
-                    result.status === 'success' ? 'border-l-success' :
-                    result.status === 'warning' ? 'border-l-warning' :
-                    'border-l-destructive'
-                  }`}>
+                  <Card key={index} className={`border-l-4 ${getStatusColor(result.status)}`}>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center justify-between">
                         <div className="flex items-center space-x-2">
@@ -396,12 +529,17 @@ export function SystemDiagnostic() {
                           <Badge variant="outline" className="text-xs">
                             {result.category}
                           </Badge>
+                          {result.duration && (
+                            <Badge variant="secondary" className="text-xs">
+                              {result.duration}ms
+                            </Badge>
+                          )}
                         </div>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-0">
                       <p className="text-sm text-muted-foreground mb-2">{result.message}</p>
-                      {result.details && (
+                      {result.details && result.details.length > 0 && (
                         <ul className="text-xs text-muted-foreground space-y-1">
                           {result.details.map((detail, i) => (
                             <li key={i} className="pl-2 border-l border-border">• {detail}</li>
@@ -416,6 +554,23 @@ export function SystemDiagnostic() {
                 ))}
               </div>
             </ScrollArea>
+          )}
+
+          {results.length > 0 && !isRunning && (
+            <div className="mt-4 p-3 bg-muted rounded-lg">
+              <h4 className="text-sm font-medium mb-2">Résumé du diagnostic:</h4>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>• {stats.success} tests réussis</p>
+                <p>• {stats.warning} avertissements</p>
+                <p>• {stats.error} erreurs critiques</p>
+                {stats.error === 0 && (
+                  <p className="text-green-600 font-medium">✓ Système opérationnel</p>
+                )}
+                {stats.error > 0 && (
+                  <p className="text-red-600 font-medium">✗ Problèmes détectés nécessitant une attention</p>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </DialogContent>

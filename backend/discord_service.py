@@ -3,8 +3,8 @@ import re
 import aiohttp
 import logging
 from typing import List, Dict, Optional, Any
-from database import get_database
-from models import User, Guild, UserGuildRole, Role
+from mysql_database import get_database
+from mysql_models import User, Guild, UserGuildRole, Role
 
 logger = logging.getLogger(__name__)
 

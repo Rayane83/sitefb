@@ -133,7 +133,7 @@ async def get_user_guild_roles(guild_id: str, user_id: str, db: MySQLDatabaseSer
 async def get_dashboard_summary(
     guild_id: str,
     entreprise: str = Query(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get dashboard summary for an enterprise"""
     summary = await business_service.calculate_dashboard_summary(guild_id, entreprise)
@@ -143,7 +143,7 @@ async def get_dashboard_summary(
 async def get_employee_count(
     guild_id: str,
     entreprise: str = Query(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get employee count for an enterprise"""
     count = await business_service.get_employee_count(guild_id, entreprise)
@@ -154,7 +154,7 @@ async def get_employee_count(
 async def get_dotation(
     guild_id: str,
     entreprise: str = Query(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get dotation data for an enterprise"""
     dotation_data = await db.get_dotation_data(guild_id, entreprise)
@@ -182,7 +182,7 @@ async def get_dotation(
 async def save_dotation(
     guild_id: str,
     dotation_request: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Save dotation data"""
     try:
@@ -219,7 +219,7 @@ async def save_dotation(
 
 # Staff Configuration endpoints
 @api_router.get("/staff/config/{guild_id}")
-async def get_staff_config(guild_id: str, db: DatabaseService = Depends(get_db)):
+async def get_staff_config(guild_id: str, db: MySQLDatabaseService = Depends(get_db)):
     """Get staff configuration"""
     config = await db.get_staff_config(guild_id)
     if not config:
@@ -248,7 +248,7 @@ async def get_staff_config(guild_id: str, db: DatabaseService = Depends(get_db))
 async def save_staff_config(
     guild_id: str,
     config_data: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Save staff configuration"""
     try:
@@ -265,7 +265,7 @@ async def save_staff_config(
 
 # Enterprise endpoints
 @api_router.get("/enterprises/{guild_id}")
-async def get_enterprises(guild_id: str, db: DatabaseService = Depends(get_db)):
+async def get_enterprises(guild_id: str, db: MySQLDatabaseService = Depends(get_db)):
     """Get all enterprises for a guild"""
     enterprises = await db.get_entreprises(guild_id)
     return [{"id": e.key, "name": e.name} for e in enterprises]
@@ -274,7 +274,7 @@ async def get_enterprises(guild_id: str, db: DatabaseService = Depends(get_db)):
 async def create_enterprise(
     guild_id: str,
     enterprise_data: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Create or update an enterprise"""
     try:
@@ -300,7 +300,7 @@ async def create_enterprise(
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.delete("/enterprises/{guild_id}/{key}")
-async def delete_enterprise(guild_id: str, key: str, db: DatabaseService = Depends(get_db)):
+async def delete_enterprise(guild_id: str, key: str, db: MySQLDatabaseService = Depends(get_db)):
     """Delete an enterprise"""
     success = await db.delete_entreprise(guild_id, key)
     if not success:
@@ -312,7 +312,7 @@ async def delete_enterprise(guild_id: str, key: str, db: DatabaseService = Depen
 async def get_tax_brackets(
     guild_id: str,
     entreprise: str = Query(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get tax brackets for an enterprise"""
     tax_brackets = await db.get_tax_brackets(guild_id, entreprise)
@@ -335,7 +335,7 @@ async def get_tax_brackets(
 async def get_wealth_brackets(
     guild_id: str,
     entreprise: str = Query(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get wealth tax brackets"""
     tax_brackets = await db.get_tax_brackets(guild_id, entreprise)
@@ -354,7 +354,7 @@ async def get_wealth_brackets(
 async def get_archive(
     guild_id: str,
     entreprise: Optional[str] = Query(None),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get archive entries"""
     entries = await db.get_archive_entries(guild_id)
@@ -380,7 +380,7 @@ async def get_archive(
 async def add_archive_entry(
     guild_id: str,
     entry_data: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Add archive entry"""
     try:
@@ -400,7 +400,7 @@ async def add_archive_entry(
 
 # Blanchiment endpoints
 @api_router.get("/blanchiment/state/{scope}")
-async def get_blanchiment_state(scope: str, db: DatabaseService = Depends(get_db)):
+async def get_blanchiment_state(scope: str, db: MySQLDatabaseService = Depends(get_db)):
     """Get blanchiment state for a scope"""
     state = await db.get_blanchiment_state(scope)
     if not state:
@@ -417,7 +417,7 @@ async def get_blanchiment_state(scope: str, db: DatabaseService = Depends(get_db
 async def save_blanchiment_state(
     scope: str,
     state_data: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Save blanchiment state"""
     try:
@@ -436,7 +436,7 @@ async def save_blanchiment_state(
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/blanchiment/global/{guild_id}")
-async def get_blanchiment_global(guild_id: str, db: DatabaseService = Depends(get_db)):
+async def get_blanchiment_global(guild_id: str, db: MySQLDatabaseService = Depends(get_db)):
     """Get global blanchiment configuration"""
     config = await db.get_blanchiment_global(guild_id)
     if not config:
@@ -451,7 +451,7 @@ async def get_blanchiment_global(guild_id: str, db: DatabaseService = Depends(ge
 async def save_blanchiment_global(
     guild_id: str,
     config_data: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Save global blanchiment configuration"""
     try:
@@ -475,7 +475,7 @@ async def upload_document(
     entreprise: str = Form(...),
     document_type: str = Form(...),
     uploaded_by: str = Form(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Upload a document (invoice or diploma)"""
     try:
@@ -510,7 +510,7 @@ async def upload_document(
 async def get_documents(
     guild_id: str,
     entreprise: str = Query(...),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get documents for an enterprise"""
     documents = await db.get_documents_by_entreprise(guild_id, entreprise)
@@ -532,7 +532,7 @@ async def get_documents(
 async def download_document(
     guild_id: str,
     document_id: str,
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Download a document"""
     document = await db.get_document_by_id(document_id)
@@ -551,7 +551,7 @@ async def download_document(
 async def get_company_config(
     guild_id: str,
     entreprise_id: Optional[str] = Query(None),
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get company configuration"""
     config = await db.get_company_config(guild_id, entreprise_id)
@@ -573,7 +573,7 @@ async def get_company_config(
 async def save_company_config(
     guild_id: str,
     config_data: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Save company configuration"""
     try:
@@ -591,7 +591,7 @@ async def save_company_config(
 
 # Discord Configuration endpoints (for superadmin)
 @api_router.get("/discord/config")
-async def get_discord_config(db: DatabaseService = Depends(get_db)):
+async def get_discord_config(db: MySQLDatabaseService = Depends(get_db)):
     """Get Discord configuration"""
     config = await db.get_discord_config()
     if not config:
@@ -601,7 +601,7 @@ async def get_discord_config(db: DatabaseService = Depends(get_db)):
 @api_router.post("/discord/config")
 async def save_discord_config(
     config_data: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Save Discord configuration"""
     try:
@@ -616,7 +616,7 @@ async def save_discord_config(
 @api_router.post("/salary/calculate")
 async def calculate_salary(
     salary_request: Dict[str, Any],
-    db: DatabaseService = Depends(get_db)
+    db: MySQLDatabaseService = Depends(get_db)
 ):
     """Calculate salary for an employee"""
     try:

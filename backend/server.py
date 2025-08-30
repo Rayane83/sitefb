@@ -136,8 +136,8 @@ async def get_dashboard_summary(
     db: MySQLDatabaseService = Depends(get_db)
 ):
     """Get dashboard summary for an enterprise"""
-    summary = await business_service.calculate_dashboard_summary(guild_id, entreprise)
-    return summary.dict()
+    summary = await business_service.calculate_dashboard_summary(guild_id, entreprise, db)
+    return summary
 
 @api_router.get("/dashboard/employee-count/{guild_id}")
 async def get_employee_count(

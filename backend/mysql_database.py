@@ -315,17 +315,17 @@ db_service: Optional[MySQLDatabaseService] = None
 def get_database() -> MySQLDatabaseService:
     global db_service
     if db_service is None:
-        mysql_url = os.environ.get('MYSQL_URL', 'mysql://root:password@localhost:3306/flashback_enterprise_db')
-        db_service = MySQLDatabaseService(mysql_url)
+        database_url = os.environ.get('DATABASE_URL') or os.environ.get('MYSQL_URL', 'sqlite+aiosqlite:///./flashback_enterprise.db')
+        db_service = MySQLDatabaseService(database_url)
     return db_service
 
 async def init_database():
     """Initialize database connection and tables"""
     global db_service
-    mysql_url = os.environ.get('MYSQL_URL', 'mysql://root:password@localhost:3306/flashback_enterprise_db')
-    db_service = MySQLDatabaseService(mysql_url)
+    database_url = os.environ.get('DATABASE_URL') or os.environ.get('MYSQL_URL', 'sqlite+aiosqlite:///./flashback_enterprise.db')
+    db_service = MySQLDatabaseService(database_url)
     await db_service.init_database()
-    logger.info("MySQL database initialized")
+    logger.info("Database initialized")
 
 async def close_database():
     """Close database connection"""
@@ -333,4 +333,4 @@ async def close_database():
     if db_service:
         await db_service.close()
         db_service = None
-        logger.info("MySQL database connection closed")
+        logger.info("Database connection closed")

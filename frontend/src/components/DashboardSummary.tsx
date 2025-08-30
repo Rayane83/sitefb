@@ -47,7 +47,7 @@ export function DashboardSummary({ guildId, currentRole, entreprise }: Dashboard
       setIsLoading(true);
       setError(null);
       try {
-        const API_BASE = import.meta.env.VITE_REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
+        const API_BASE = import.meta.env.VITE_REACT_APP_BACKEND_URL || 'https://repo-optimizer-3.preview.emergentagent.com';
         
         // 1) Get available enterprises
         try {

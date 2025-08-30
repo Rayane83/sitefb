@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class BusinessService:
     def __init__(self):
-        self.db = get_database()
+        pass  # Database is injected via dependency injection
     
     async def calculate_salary(
         self, 
@@ -16,7 +16,8 @@ class BusinessService:
         hours_worked: float, 
         guild_id: str, 
         entreprise: str,
-        grade: Optional[str] = None
+        grade: Optional[str] = None,
+        db = None
     ) -> Dict[str, float]:
         """Calculate employee salary based on CA and configuration"""
         

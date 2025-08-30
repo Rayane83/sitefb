@@ -113,7 +113,7 @@ async def get_user_by_discord_id(discord_id: str, db: MySQLDatabaseService = Dep
 
 # Guild and Role endpoints
 @api_router.get("/guilds/{guild_id}/roles/{user_id}")
-async def get_user_guild_roles(guild_id: str, user_id: str, db: DatabaseService = Depends(get_db)):
+async def get_user_guild_roles(guild_id: str, user_id: str, db: MySQLDatabaseService = Depends(get_db)):
     """Get user roles in a specific guild"""
     user_roles = await db.get_user_guild_roles(user_id, guild_id)
     if not user_roles:

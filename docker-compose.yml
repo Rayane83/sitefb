@@ -18,7 +18,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      DATABASE_URL: mysql+pymysql://Staff:Fbentreprise83@@db:3306/Sitefb
+      DATABASE_URL: mysql+pymysql://Staff:Fbentreprise83%40@db:3306/Sitefb
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}

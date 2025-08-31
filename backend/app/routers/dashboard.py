@@ -4,11 +4,12 @@ from sqlalchemy import select, func
 
 from ..database import get_db
 from ..models import DotationData, DotationRow
+from ..security import require_staff
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 @router.get("/summary/{guild_id}")
-async def summary(guild_id: int, entreprise: str, db: Session = Depends(get_db)):
+async def summary(guild_id: int, entreprise: str, db: Session = Depends(get_db), _=Depends(require_staff)):
     data = db.execute(
         select(DotationData).where(DotationData.guild_id == guild_id, DotationData.entreprise == entreprise)
     ).scalars().first()
@@ -49,7 +50,7 @@ async def summary(guild_id: int, entreprise: str, db: Session = Depends(get_db))
     }
 
 @router.get("/employee-count/{guild_id}")
-async def employee_count(guild_id: int, entreprise: str, db: Session = Depends(get_db)):
+async def employee_count(guild_id: int, entreprise: str, db: Session = Depends(get_db), _=Depends(require_staff)):
     data = db.execute(
         select(DotationData).where(DotationData.guild_id == guild_id, DotationData.entreprise == entreprise)
     ).scalars().first()

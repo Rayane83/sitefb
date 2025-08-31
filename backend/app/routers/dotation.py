@@ -6,6 +6,7 @@ from sqlalchemy import delete, select
 
 from ..database import get_db
 from ..models import DotationData, DotationRow
+from ..security import require_staff
 
 router = APIRouter(prefix="/api/dotation", tags=["dotation"])
 
@@ -34,7 +35,7 @@ class DotationPayload(BaseModel):
     inter_invoices: Optional[float] = 0
 
 @router.get("/{guild_id}")
-async def get_dotation(guild_id: int, entreprise: str, db: Session = Depends(get_db)):
+async def get_dotation(guild_id: int, entreprise: str, db: Session = Depends(get_db), _=Depends(require_staff)):
     data = db.execute(
         select(DotationData).where(DotationData.guild_id == guild_id, DotationData.entreprise == entreprise)
     ).scalars().first()
@@ -66,7 +67,7 @@ async def get_dotation(guild_id: int, entreprise: str, db: Session = Depends(get
     }
 
 @router.post("/{guild_id}")
-async def save_dotation(guild_id: int, payload: DotationPayload, db: Session = Depends(get_db)):
+async def save_dotation(guild_id: int, payload: DotationPayload, db: Session = Depends(get_db), _=Depends(require_staff)):
     # Upsert DotationData for this entreprise
     data = db.execute(
         select(DotationData).where(DotationData.guild_id == guild_id, DotationData.entreprise == payload.entreprise)

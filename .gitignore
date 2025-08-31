@@ -1,0 +1,18 @@
+# General
+.DS_Store
+node_modules
+.env
+.env.*
+*.pyc
+__pycache__/
+*.log
+
+# Backend
+/sitefb/backend/.venv/
+/sitefb/backend/.pytest_cache/
+/sitefb/backend/alembic/__pycache__/
+/sitefb/backend/alembic/versions/__pycache__/
+
+# Frontend
+/sitefb/frontend/dist/
+/sitefb/frontend/.vite/

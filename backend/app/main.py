@@ -7,6 +7,13 @@ from . import models
 from .auth import router as auth_router
 from .routers.dotation import router as dotation_router
 from .routers.dashboard import router as dashboard_router
+from .routers.enterprises import router as enterprises_router
+from .routers.tax import router as tax_router
+from .routers.documents import router as documents_router
+from .routers.archive import router as archive_router
+from .routers.blanchiment import router as blanchiment_router
+from .routers.staff import router as staff_router
+from .routers.company import router as company_router
 
 app = FastAPI(title="Portail Entreprise Flashback Fa")
 
@@ -21,12 +28,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from .routers.enterprises import router as enterprises_router
-from .routers.tax import router as tax_router
-from .routers.documents import router as documents_router
-from .routers.archive import router as archive_router
-from .routers.blanchiment import router as blanchiment_router
-
 
 # Ensure tables exist if running without Alembic (dev convenience)
 Base.metadata.create_all(bind=engine)
@@ -35,14 +36,15 @@ Base.metadata.create_all(bind=engine)
 app.include_router(auth_router)
 app.include_router(dotation_router)
 app.include_router(dashboard_router)
-
-# Minimal health
 app.include_router(enterprises_router)
 app.include_router(tax_router)
 app.include_router(documents_router)
 app.include_router(archive_router)
 app.include_router(blanchiment_router)
+app.include_router(staff_router)
+app.include_router(company_router)
 
+# Minimal health
 @app.get("/api/health")
 def health():
     return {"status": "ok"}

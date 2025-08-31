@@ -12,13 +12,13 @@ export default {
         background: '#0b0e14',
         foreground: '#e6edf3',
         primary: {
-          DEFAULT: '#5865F2', // Discord blue accent
+          DEFAULT: '#1EA7AB', // teal from logo
           foreground: '#ffffff'
         },
-        muted: '#141821',
-        card: '#0f1320',
-        border: '#22283a',
-        accent: '#8b84f8'
+        muted: '#10151c',
+        card: '#0e131b',
+        border: '#1d2533',
+        accent: '#128089'
       },
       boxShadow: {
         soft: '0 10px 30px rgba(0,0,0,0.25)'

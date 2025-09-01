@@ -24,6 +24,9 @@ function Header() {
     await fetch(`${API_BASE}/api/auth/discord/logout`, { method: 'POST', credentials: 'include' })
     navigate('/')
   }
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
+  useEffect(()=>{ (async()=>{ try { const r = await fetch(`${API_BASE}/api/admin/discord-config`, { credentials:'include' }); setIsSuperadmin(r.ok) } catch { setIsSuperadmin(false) } })() }, [])
+
   return (
     <header className="border-b border-border">
       <div className="container flex items-center justify-between py-3">
@@ -41,7 +44,7 @@ function Header() {
           <Link to="/blanchiment" className="hover:opacity-100">Blanchiment</Link>
           <Link to="/staff-config" className="hover:opacity-100">Staff</Link>
           <Link to="/company-config" className="hover:opacity-100">Company</Link>
-          <Link to="/superadmin" className="hover:opacity-100 text-red-300">Superadmin</Link>
+          {isSuperadmin && <Link to="/superadmin" className="hover:opacity-100 text-red-300">Superadmin</Link>}
         </nav>
         <div className="flex items-center gap-2">
           <select className="input" value={entreprise} onChange={e=>setEntreprise(e.target.value)}>

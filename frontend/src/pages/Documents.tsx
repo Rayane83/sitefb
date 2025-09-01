@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, DragEvent } from 'react'
 import { useApp } from '@/context/AppContext'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -8,9 +11,10 @@ type Doc = { id:number; filename:string; content_type:string; size:number; uploa
 export default function DocumentsPage(){
   const { guildId, entreprise } = useApp()
   const [docs, setDocs] = useState<Doc[]>([])
-  const [file, setFile] = useState<File|undefined>()
+  const [files, setFiles] = useState<File[]>([])
   const [doctype, setDoctype] = useState('facture')
   const [filter, setFilter] = useState('')
+  const [dragOver, setDragOver] = useState(false)
 
   const load = async ()=>{
     const res = await fetch(`${API_BASE}/api/documents/${guildId}?entreprise=${encodeURIComponent(entreprise)}`, { credentials:'include' })
@@ -18,14 +22,33 @@ export default function DocumentsPage(){
   }
   useEffect(()=>{ load() }, [guildId, entreprise])
 
+  const onFileSelect = (list: FileList | null) => {
+    if (!list) return
+    const arr = Array.from(list)
+    setFiles(prev => [...prev, ...arr])
+  }
+
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); e.stopPropagation(); setDragOver(false)
+    onFileSelect(e.dataTransfer.files)
+  }
+  const onDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true) }
+  const onDragLeave = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(false) }
+
   const upload = async ()=>{
-    if (!file) return
-    const fd = new FormData()
-    fd.append('entreprise', entreprise)
-    fd.append('document_type', doctype)
-    fd.append('file', file)
-    const res = await fetch(`${API_BASE}/api/documents/upload/${guildId}`, { method:'POST', body: fd, credentials:'include' })
-    if (res.ok) { setFile(undefined); await load() }
+    if (!files.length) return
+    let ok = 0
+    for (const f of files){
+      const fd = new FormData()
+      fd.append('entreprise', entreprise)
+      fd.append('document_type', doctype)
+      fd.append('file', f)
+      const res = await fetch(`${API_BASE}/api/documents/upload/${guildId}`, { method:'POST', body: fd, credentials:'include' })
+      if (res.ok) ok++
+    }
+    toast.success(`${ok}/${files.length} fichiers uploadés`)
+    setFiles([])
+    await load()
   }
 
   const preview = async (d: Doc) => {
@@ -40,23 +63,32 @@ export default function DocumentsPage(){
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <h2 className="text-xl font-semibold mb-4">Uploader un document</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input type="file" className="input" onChange={e=>setFile(e.target.files?.[0])} />
+      <div className="bg-card border border-border rounded-xl p-6 shadow-soft">
+        <h2 className="text-xl font-semibold mb-4">Uploader des documents</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+          <div
+            className={`border-2 ${dragOver? 'border-primary':'border-dashed border-border'} rounded-xl p-4 text-center transition-colors`}
+            onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+          >
+            <p className="text-sm opacity-80 mb-2">Glissez-déposez vos fichiers ici</p>
+            <Input type="file" multiple onChange={e=>onFileSelect(e.target.files)} />
+          </div>
           <select className="input" value={doctype} onChange={e=>setDoctype(e.target.value)}>
             <option value="facture">Facture</option>
             <option value="diplome">Diplôme</option>
             <option value="autre">Autre</option>
           </select>
-          <button className="btn" onClick={upload}>Uploader</button>
+          <Button onClick={upload} disabled={!files.length}>Uploader {files.length? `(${files.length})`: ''}</Button>
         </div>
+        {files.length>0 && (
+          <div className="mt-3 text-sm opacity-80">Sélectionnés: {files.map(f=>f.name).join(', ')}</div>
+        )}
       </div>
 
-      <div className="card">
+      <div className="bg-card border border-border rounded-xl p-6 shadow-soft">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xl font-semibold">Documents</h2>
-          <input className="input" placeholder="Rechercher…" value={filter} onChange={e=>setFilter(e.target.value)} />
+          <Input placeholder="Rechercher…" value={filter} onChange={e=>setFilter(e.target.value)} />
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -74,7 +106,7 @@ export default function DocumentsPage(){
                   <td className="p-2">{d.filename}</td>
                   <td className="p-2">{d.content_type}</td>
                   <td className="p-2">{(d.size/1024).toFixed(1)} Ko</td>
-                  <td className="p-2"><button className="btn" onClick={()=>preview(d)}>Prévisualiser / Télécharger</button></td>
+                  <td className="p-2"><Button onClick={()=>preview(d)}>Prévisualiser / Télécharger</Button></td>
                 </tr>
               ))}
             </tbody>

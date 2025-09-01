@@ -8,11 +8,17 @@ import TaxPage from './pages/Tax'
 import BlanchimentPage from './pages/Blanchiment'
 import StaffConfigPage from './pages/StaffConfig'
 import CompanyConfigPage from './pages/CompanyConfig'
+import AppToaster from './components/ui/toaster'
+import { Button } from './components/ui/button'
+import { Input } from './components/ui/input'
+import { toCSV, download } from './utils/export'
+import { toast } from 'sonner'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 function Header() {
   const navigate = useNavigate()
+  const { entreprise, setEntreprise, enterprises } = useApp()
   const logout = async () => {
     await fetch(`${API_BASE}/api/auth/discord/logout`, { method: 'POST', credentials: 'include' })
     navigate('/')
@@ -32,8 +38,15 @@ function Header() {
           <Link to="/documents" className="hover:opacity-100">Documents</Link>
           <Link to="/archives" className="hover:opacity-100">Archives</Link>
           <Link to="/blanchiment" className="hover:opacity-100">Blanchiment</Link>
+          <Link to="/staff-config" className="hover:opacity-100">Staff</Link>
+          <Link to="/company-config" className="hover:opacity-100">Company</Link>
         </nav>
-        <button className="btn" onClick={logout}>Déconnexion</button>
+        <div className="flex items-center gap-2">
+          <select className="input" value={entreprise} onChange={e=>setEntreprise(e.target.value)}>
+            {enterprises.length? enterprises.map(e=> <option key={e.key}>{e.name}</option>): <option>EntrepriseA</option>}
+          </select>
+          <Button onClick={logout}>Déconnexion</Button>
+        </div>
       </div>
     </header>
   )
@@ -51,13 +64,13 @@ function Login() {
   }
   return (
     <div className="container min-h-[80vh] grid place-items-center">
-      <div className="card w-full max-w-md text-center space-y-6">
+      <div className="bg-card border border-border rounded-xl p-6 shadow-soft w-full max-w-md text-center space-y-6">
         <img src="/logo.png" alt="logo" className="mx-auto w-24 h-24" />
         <div>
           <h1 className="text-2xl font-semibold">Connexion</h1>
           <p className="opacity-80 text-sm">Se connecter avec Discord pour accéder au portail.</p>
         </div>
-        <button className="btn w-full" onClick={login} disabled={loading}>{loading? 'Redirection…' : 'Se connecter avec Discord'}</button>
+        <Button className="w-full" onClick={login} disabled={loading}>{loading? 'Redirection…' : 'Se connecter avec Discord'}</Button>
       </div>
     </div>
   )
@@ -79,8 +92,8 @@ function useMe() {
 
 function Dashboard() {
   const { me, loading } = useMe()
+  const { entreprise } = useApp()
   const [summary, setSummary] = useState<any>(null)
-  const [entreprise, setEntreprise] = useState('EntrepriseA')
   const guildId = '1404608015230832742'
   useEffect(() => { (async () => {
     const res = await fetch(`${API_BASE}/api/dashboard/summary/${guildId}?entreprise=${encodeURIComponent(entreprise)}`, { credentials: 'include' })
@@ -96,13 +109,6 @@ function Dashboard() {
       <main className="container py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <div className="flex gap-2 items-center">
-            <span className="opacity-80">Entreprise</span>
-            <select className="input" value={entreprise} onChange={e=>setEntreprise(e.target.value)}>
-              <option>EntrepriseA</option>
-              <option>EntrepriseB</option>
-            </select>
-          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
@@ -113,21 +119,21 @@ function Dashboard() {
             {k:'Montant Impôts',v:summary?.montant_impots},
             {k:'Employés',v:summary?.employee_count},
           ].map((c,i)=> (
-            <div key={i} className="card">
+            <div key={i} className="bg-card border border-border rounded-xl p-6 shadow-soft">
               <div className="opacity-70 text-sm">{c.k}</div>
               <div className="text-2xl font-semibold">{c.v ?? '—'}</div>
             </div>
           ))}
         </div>
       </main>
+      <AppToaster />
     </div>
   )
 }
 
 function DotationsPage(){
   const { me, loading } = useMe()
-  const [entreprise, setEntreprise] = useState('EntrepriseA')
-  const guildId = '1404608015230832742'
+  const { entreprise, guildId } = useApp()
   if (loading) return <div className="container py-6">Chargement…</div>
   if (!me) return <Login />
   return (
@@ -136,6 +142,7 @@ function DotationsPage(){
       <main className="container py-6">
         <Dotations entreprise={entreprise} guildId={guildId} />
       </main>
+      <AppToaster />
     </div>
   )
 }
@@ -149,26 +156,45 @@ function Dotations({ entreprise, guildId }: { entreprise: string, guildId: strin
     const data = await res.json(); setRows(data.rows||[]); if (data.meta) setMeta(data.meta)
   })() }, [entreprise])
 
-  const addRow = () => setRows(r => [...r, { name: '', run: 0, facture: 0, vente: 0 }])
+  const computePrime = (ca:number) => {
+    const eligible = config.prime_paliers.filter((p:any)=> ca >= p.min).map((p:any)=> p.prime)
+    return eligible.length? Math.max(...eligible): 0
+  }
+
+  const exportCSV = () => {
+    const mapped = rows.map(r => {
+      const ca_total = Number(r.run||0)+Number(r.facture||0)+Number(r.vente||0)
+      const salaire = Number((ca_total * Number(config.salaire_pourcentage||0)).toFixed(2))
+      const prime = computePrime(ca_total)
+      return { Employe: r.name, Run: r.run, Facture: r.facture, Vente: r.vente, CA_Total: ca_total, Salaire: salaire, Prime: prime }
+    })
+    download(`dotations_${entreprise}.csv`, toCSV(mapped), 'text/csv')
+    toast.success('Export CSV généré')
+  }
+
   const save = async () => {
     const payload = { entreprise, rows: rows.map(({id, ca_total, salaire, prime, ...rest}) => rest), config, ...meta }
     const res = await fetch(`${API_BASE}/api/dotation/${guildId}`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) })
-    const data = await res.json(); alert(`Sauvé. CA:${data.totals.ca_total} Salaire:${data.totals.salaire} Prime:${data.totals.prime}`)
+    const data = await res.json();
+    toast.success(`Sauvé: CA ${data.totals.ca_total} | Salaire ${data.totals.salaire} | Prime ${data.totals.prime}`)
   }
 
   return (
-    <div className="card space-y-4">
+    <div className="bg-card border border-border rounded-xl p-6 shadow-soft space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Dotations</h2>
-        <button className="btn" onClick={save}>Enregistrer</button>
+        <div className="flex gap-2">
+          <Button onClick={exportCSV} variant="outline">Exporter CSV</Button>
+          <Button onClick={save}>Enregistrer</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-        <label className="text-sm opacity-80">Solde actuel<input className="input w-full" type="number" value={meta.solde_actuel} onChange={e=>setMeta({...meta, solde_actuel: parseFloat(e.target.value)})} /></label>
-        <label className="text-sm opacity-80">Dépenses<input className="input w-full" type="number" value={meta.expenses} onChange={e=>setMeta({...meta, expenses: parseFloat(e.target.value)})} /></label>
-        <label className="text-sm opacity-80">Retraits<input className="input w-full" type="number" value={meta.withdrawals} onChange={e=>setMeta({...meta, withdrawals: parseFloat(e.target.value)})} /></label>
-        <label className="text-sm opacity-80">Commissions<input className="input w-full" type="number" value={meta.commissions} onChange={e=>setMeta({...meta, commissions: parseFloat(e.target.value)})} /></label>
-        <label className="text-sm opacity-80">Inter-factures<input className="input w-full" type="number" value={meta.inter_invoices} onChange={e=>setMeta({...meta, inter_invoices: parseFloat(e.target.value)})} /></label>
+        <label className="text-sm opacity-80">Solde actuel<Input className="w-full" type="number" value={meta.solde_actuel} onChange={e=>setMeta({...meta, solde_actuel: parseFloat(e.target.value)})} /></label>
+        <label className="text-sm opacity-80">Dépenses<Input className="w-full" type="number" value={meta.expenses} onChange={e=>setMeta({...meta, expenses: parseFloat(e.target.value)})} /></label>
+        <label className="text-sm opacity-80">Retraits<Input className="w-full" type="number" value={meta.withdrawals} onChange={e=>setMeta({...meta, withdrawals: parseFloat(e.target.value)})} /></label>
+        <label className="text-sm opacity-80">Commissions<Input className="w-full" type="number" value={meta.commissions} onChange={e=>setMeta({...meta, commissions: parseFloat(e.target.value)})} /></label>
+        <label className="text-sm opacity-80">Inter-factures<Input className="w-full" type="number" value={meta.inter_invoices} onChange={e=>setMeta({...meta, inter_invoices: parseFloat(e.target.value)})} /></label>
       </div>
 
       <div className="overflow-x-auto">
@@ -185,11 +211,11 @@ function Dotations({ entreprise, guildId }: { entreprise: string, guildId: strin
           <tbody>
             {rows.map((row, idx) => (
               <tr key={idx} className="border-t border-border">
-                <td className="p-2"><input className="input w-full" value={row.name} onChange={e=>{const v=e.target.value; setRows(r=>r.map((x,i)=> i===idx? {...x, name:v}:x))}} /></td>
-                <td className="p-2"><input className="input w-full" type="number" value={row.run} onChange={e=>{const v=parseFloat(e.target.value||'0'); setRows(r=>r.map((x,i)=> i===idx? {...x, run:v}:x))}} /></td>
-                <td className="p-2"><input className="input w-full" type="number" value={row.facture} onChange={e=>{const v=parseFloat(e.target.value||'0'); setRows(r=>r.map((x,i)=> i===idx? {...x, facture:v}:x))}} /></td>
-                <td className="p-2"><input className="input w-full" type="number" value={row.vente} onChange={e=>{const v=parseFloat(e.target.value||'0'); setRows(r=>r.map((x,i)=> i===idx? {...x, vente:v}:x))}} /></td>
-                <td className="p-2 text-right"><button className="btn" onClick={()=>setRows(r=>r.filter((_,i)=>i!==idx))}>Supprimer</button></td>
+                <td className="p-2"><Input className="w-full" value={row.name} onChange={e=>{const v=e.target.value; setRows(r=>r.map((x,i)=> i===idx? {...x, name:v}:x))}} /></td>
+                <td className="p-2"><Input className="w-full" type="number" value={row.run} onChange={e=>{const v=parseFloat(e.target.value||'0'); setRows(r=>r.map((x,i)=> i===idx? {...x, run:v}:x))}} /></td>
+                <td className="p-2"><Input className="w-full" type="number" value={row.facture} onChange={e=>{const v=parseFloat(e.target.value||'0'); setRows(r=>r.map((x,i)=> i===idx? {...x, facture:v}:x))}} /></td>
+                <td className="p-2"><Input className="w-full" type="number" value={row.vente} onChange={e=>{const v=parseFloat(e.target.value||'0'); setRows(r=>r.map((x,i)=> i===idx? {...x, vente:v}:x))}} /></td>
+                <td className="p-2 text-right"><Button onClick={()=>setRows(r=>r.filter((_,i)=>i!==idx))}>Supprimer</Button></td>
               </tr>
             ))}
           </tbody>
@@ -197,21 +223,21 @@ function Dotations({ entreprise, guildId }: { entreprise: string, guildId: strin
       </div>
 
       <div>
-        <button className="btn" onClick={()=>setRows(r=>[...r,{name:'',run:0,facture:0,vente:0}])}>Ajouter une ligne</button>
+        <Button onClick={()=>setRows(r=>[...r,{name:'',run:0,facture:0,vente:0}])}>Ajouter une ligne</Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <label className="text-sm opacity-80">% Salaire sur CA<input className="input w-full" type="number" step="0.01" min={0} max={1} value={config.salaire_pourcentage} onChange={e=>setConfig({...config, salaire_pourcentage: parseFloat(e.target.value)})} /></label>
+        <label className="text-sm opacity-80">% Salaire sur CA<Input className="w-full" type="number" step="0.01" min={0} max={1} value={config.salaire_pourcentage} onChange={e=>setConfig({...config, salaire_pourcentage: parseFloat(e.target.value)})} /></label>
         <div className="text-sm opacity-80">
           Paliers prime (ex: 1000→50, 3000→150)
           <div className="mt-2 space-y-2">
             {config.prime_paliers.map((p:any, i:number)=> (
               <div key={i} className="grid grid-cols-2 gap-2">
-                <input className="input" type="number" placeholder="Min CA" value={p.min} onChange={e=>{const v=parseFloat(e.target.value||'0'); setConfig((c:any)=>({...c, prime_paliers: c.prime_paliers.map((x:any,ix:number)=> ix===i? {...x, min:v}:x)}))}} />
-                <input className="input" type="number" placeholder="Prime" value={p.prime} onChange={e=>{const v=parseFloat(e.target.value||'0'); setConfig((c:any)=>({...c, prime_paliers: c.prime_paliers.map((x:any,ix:number)=> ix===i? {...x, prime:v}:x)}))}} />
+                <Input type="number" placeholder="Min CA" value={p.min} onChange={e=>{const v=parseFloat(e.target.value||'0'); setConfig((c:any)=>({...c, prime_paliers: c.prime_paliers.map((x:any,ix:number)=> ix===i? {...x, min:v}:x)}))}} />
+                <Input type="number" placeholder="Prime" value={p.prime} onChange={e=>{const v=parseFloat(e.target.value||'0'); setConfig((c:any)=>({...c, prime_paliers: c.prime_paliers.map((x:any,ix:number)=> ix===i? {...x, prime:v}:x)}))}} />
               </div>
             ))}
-            <button className="btn" onClick={()=> setConfig((c:any)=> ({...c, prime_paliers: [...c.prime_paliers, {min:0, prime:0}] }))}>Ajouter palier</button>
+            <Button onClick={()=> setConfig((c:any)=> ({...c, prime_paliers: [...c.prime_paliers, {min:0, prime:0}] }))}>Ajouter palier</Button>
           </div>
         </div>
       </div>
@@ -234,6 +260,7 @@ export default function App() {
         <Route path="/staff-config" element={<StaffConfigPage />} />
         <Route path="/company-config" element={<CompanyConfigPage />} />
       </Routes>
+      <AppToaster />
     </AppProvider>
   )
 }

@@ -14,6 +14,7 @@ from .routers.archive import router as archive_router
 from .routers.blanchiment import router as blanchiment_router
 from .routers.staff import router as staff_router
 from .routers.company import router as company_router
+from .routers.admin import router as admin_router
 
 app = FastAPI(title="Portail Entreprise Flashback Fa")
 
@@ -43,6 +44,7 @@ app.include_router(archive_router)
 app.include_router(blanchiment_router)
 app.include_router(staff_router)
 app.include_router(company_router)
+app.include_router(admin_router)
 
 # Minimal health
 @app.get("/api/health")

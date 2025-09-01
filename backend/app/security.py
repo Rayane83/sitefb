@@ -9,6 +9,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALG = "HS256"
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
 STAFF_ROLE_ID = os.getenv("STAFF_ROLE_ID", "1404608105723068547")  # default to provided
+SUPERADMIN_LIST = [s.strip() for s in os.getenv("SUPERADMIN_DISCORD_ID", "").split(",") if s.strip()]
 
 async def get_current_discord_id(request: Request) -> str:
     token = request.cookies.get("session_token")
@@ -34,4 +35,11 @@ async def require_staff(request: Request, guild_id: str, discord_id: str = Depen
         role_ids = set(member.get("roles", []))
         if STAFF_ROLE_ID not in role_ids:
             raise HTTPException(status_code=403, detail="Staff role required")
+    return True
+
+async def require_superadmin(discord_id: str = Depends(get_current_discord_id)):
+    if not SUPERADMIN_LIST:
+        raise HTTPException(status_code=500, detail="SUPERADMIN_DISCORD_ID not configured")
+    if discord_id not in SUPERADMIN_LIST:
+        raise HTTPException(status_code=403, detail="Superadmin required")
     return True
